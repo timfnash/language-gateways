@@ -1,0 +1,11 @@
+# Never commit recordings or gated content
+*.wav
+*.WAV
+*.m4a
+*.mp4
+*.mp3
+sessions-private/
+.env
+.venv/
+node_modules/
+.DS_Store
