@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reset password</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <header>
+    <div class="inner">
+      <a class="brand" href="index.html">Flourishing in Diversity<small>Language Gateways</small></a>
+    </div>
+  </header>
+
+  <main>
+    <h1>Reset your password</h1>
+
+    <div class="card">
+      <p id="message" class="message" hidden></p>
+
+      <form id="form-request">
+        <p class="meta">Enter your email address and we’ll send you a link to choose a new password.</p>
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="email" required>
+        <button type="submit" class="wide">Send reset link</button>
+      </form>
+
+      <form id="form-new" hidden>
+        <label for="password">New password <span class="hint">(at least 8 characters)</span></label>
+        <input id="password" type="password" autocomplete="new-password" minlength="8" required>
+        <button type="submit" class="wide">Save new password</button>
+      </form>
+
+      <p class="small ui"><a href="index.html">Back to sign in</a></p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase, configured, pageUrl, showMessage, friendlyError, notConfiguredBanner } from './assets/app.js';
+
+    const message = document.getElementById('message');
+    const request = document.getElementById('form-request');
+    const choose = document.getElementById('form-new');
+
+    if (!configured) {
+      notConfiguredBanner();
+    } else {
+      // Arriving from the emailed link signs the person in for password recovery.
+      supabase.auth.onAuthStateChange(event => {
+        if (event === 'PASSWORD_RECOVERY') {
+          request.hidden = true;
+          choose.hidden = false;
+        }
+      });
+
+      request.addEventListener('submit', async e => {
+        e.preventDefault();
+        e.submitter.disabled = true;
+        const { error } = await supabase.auth.resetPasswordForEmail(
+          document.getElementById('email').value.trim(),
+          { redirectTo: pageUrl('reset.html') },
+        );
+        e.submitter.disabled = false;
+        if (error) return showMessage(message, friendlyError(error));
+        request.reset();
+        showMessage(message, 'If that address has an account, a reset link is on its way. Check your inbox.', 'ok');
+      });
+
+      choose.addEventListener('submit', async e => {
+        e.preventDefault();
+        e.submitter.disabled = true;
+        const { error } = await supabase.auth.updateUser({ password: document.getElementById('password').value });
+        e.submitter.disabled = false;
+        if (error) return showMessage(message, friendlyError(error));
+        choose.hidden = true;
+        showMessage(message, 'Your password has been changed.', 'ok');
+        setTimeout(() => location.replace(pageUrl('index.html')), 1500);
+      });
+    }
+  </script>
+</body>
+</html>

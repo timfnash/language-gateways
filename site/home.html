@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flourishing in Diversity</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <header>
+    <div class="inner">
+      <a class="brand" href="home.html">Flourishing in Diversity<small>Language Gateways</small></a>
+      <nav><a href="profile.html">Profile</a><button id="signout" class="link" type="button">Sign out</button></nav>
+    </div>
+  </header>
+
+  <main>
+    <h1 id="greeting">Welcome</h1>
+    <p class="lead">A five-session course on how a church’s linguistic diversity helps it flourish.</p>
+
+    <div class="card">
+      <h2 style="margin-top:0">Session One: coming soon</h2>
+      <p>The talk, slides and table discussions from Session One will appear here, so you can read, watch or revisit them at your own pace.</p>
+    </div>
+
+    <p class="meta" id="admin-note" hidden>You’re signed in as an admin. Manage invitations in the Supabase table editor for now.</p>
+  </main>
+
+  <script type="module">
+    import { supabase, requireSignedIn, signOut, pageUrl } from './assets/app.js';
+
+    document.getElementById('signout').addEventListener('click', signOut);
+
+    const { profile } = await requireSignedIn();
+    if (profile) {
+      if (!profile.confirmed_at) location.replace(pageUrl('profile.html'));
+      if (profile.given_name) document.getElementById('greeting').textContent = `Welcome, ${profile.given_name}`;
+      const { data: isAdmin } = await supabase.rpc('is_admin');
+      document.getElementById('admin-note').hidden = !isAdmin;
+    }
+  </script>
+</body>
+</html>

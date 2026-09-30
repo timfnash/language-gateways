@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flourishing in Diversity</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <header>
+    <div class="inner">
+      <a class="brand" href="index.html">Flourishing in Diversity<small>Language Gateways</small></a>
+    </div>
+  </header>
+
+  <main>
+    <h1>Welcome</h1>
+    <p class="lead">This course site is open to people who have been invited. Sign in, or create an account with the email address your invitation was sent to.</p>
+
+    <div class="card">
+      <div class="tabs ui" role="tablist">
+        <button role="tab" id="tab-signin" aria-selected="true" aria-controls="form-signin">Sign in</button>
+        <button role="tab" id="tab-signup" aria-selected="false" aria-controls="form-signup">Create account</button>
+      </div>
+
+      <p id="message" class="message" hidden></p>
+
+      <form id="form-signin" aria-labelledby="tab-signin">
+        <label for="signin-email">Email</label>
+        <input id="signin-email" type="email" autocomplete="email" required>
+        <label for="signin-password">Password</label>
+        <input id="signin-password" type="password" autocomplete="current-password" required>
+        <button type="submit" class="wide">Sign in</button>
+        <p class="small"><a href="reset.html">Forgotten your password?</a></p>
+      </form>
+
+      <form id="form-signup" aria-labelledby="tab-signup" hidden>
+        <label for="signup-email">Email <span class="hint">(the one your invitation was sent to)</span></label>
+        <input id="signup-email" type="email" autocomplete="email" required>
+        <label for="signup-password">Password <span class="hint">(at least 8 characters)</span></label>
+        <input id="signup-password" type="password" autocomplete="new-password" minlength="8" required>
+        <button type="submit" class="wide">Create account</button>
+      </form>
+
+      <div class="ui">
+        <p class="divider">or</p>
+        <button id="google" class="secondary wide" type="button">Continue with Google</button>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase, configured, pageUrl, showMessage, friendlyError, notConfiguredBanner, nextPage } from './assets/app.js';
+
+    const message = document.getElementById('message');
+    const tabs = { signin: document.getElementById('tab-signin'), signup: document.getElementById('tab-signup') };
+    const forms = { signin: document.getElementById('form-signin'), signup: document.getElementById('form-signup') };
+
+    function selectTab(name) {
+      for (const key of Object.keys(tabs)) {
+        tabs[key].setAttribute('aria-selected', String(key === name));
+        forms[key].hidden = key !== name;
+      }
+      showMessage(message, '');
+    }
+    tabs.signin.addEventListener('click', () => selectTab('signin'));
+    tabs.signup.addEventListener('click', () => selectTab('signup'));
+
+    async function busy(button, action) {
+      button.disabled = true;
+      try { await action(); } finally { button.disabled = false; }
+    }
+
+    if (!configured) {
+      notConfiguredBanner();
+    } else {
+      // Errors from Google sign-in or email links come back in the URL.
+      const params = new URLSearchParams(location.hash.slice(1) + '&' + location.search.slice(1));
+      if (params.get('error_description')) {
+        showMessage(message, friendlyError({ message: params.get('error_description') }));
+        history.replaceState(null, '', location.pathname);
+      }
+
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (session && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+          // Defer so we don't call Supabase from inside its own callback.
+          setTimeout(async () => location.replace(pageUrl(await nextPage(session.user.id))));
+        }
+      });
+
+      forms.signin.addEventListener('submit', e => {
+        e.preventDefault();
+        busy(e.submitter, async () => {
+          const { error } = await supabase.auth.signInWithPassword({
+            email: document.getElementById('signin-email').value.trim(),
+            password: document.getElementById('signin-password').value,
+          });
+          if (error) showMessage(message, friendlyError(error));
+        });
+      });
+
+      forms.signup.addEventListener('submit', e => {
+        e.preventDefault();
+        busy(e.submitter, async () => {
+          const { data, error } = await supabase.auth.signUp({
+            email: document.getElementById('signup-email').value.trim(),
+            password: document.getElementById('signup-password').value,
+            options: { emailRedirectTo: pageUrl('index.html') },
+          });
+          if (error) return showMessage(message, friendlyError(error));
+          if (!data.session) {
+            forms.signup.reset();
+            showMessage(message, 'Nearly there: we’ve sent you an email. Click the link in it to confirm your address, then sign in.', 'ok');
+          }
+        });
+      });
+
+      document.getElementById('google').addEventListener('click', e => {
+        busy(e.currentTarget, async () => {
+          const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: pageUrl('index.html') },
+          });
+          if (error) showMessage(message, friendlyError(error));
+        });
+      });
+    }
+  </script>
+</body>
+</html>

@@ -7,6 +7,19 @@ recordings into course content.
 
 See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md` for running and processing a session.
 
+## Repo layout
+
+- `site/`: the static course site (plain HTML + ES modules, supabase-js from jsDelivr), deployed to
+  GitHub Pages by `.github/workflows/pages.yml`. Supabase URL and anon key go in `site/assets/config.js`.
+  Run locally with `python3 -m http.server 8000 --directory site`.
+- `supabase/migrations/`: the database schema, RLS and invitation-only signup (hook + auth.users trigger).
+  `supabase/seed.sql` holds the first church, cohort and admin. No Supabase CLI or Docker on this Mac:
+  migrations are pasted into the SQL editor.
+- `supabase/tests/`: PGlite tests for the schema and RLS (`npm install && npm test`). Add checks there
+  whenever a table or policy changes.
+- `docs/SETUP.md` (one-off account setup) and `docs/INVITATIONS.md` (how Tim adds people).
+- `pipeline/`: the recording → content pipeline.
+
 ## Architecture decisions (agreed)
 
 - **Front end:** static site on GitHub Pages at `course.languagegateways.com`. The public landing page
