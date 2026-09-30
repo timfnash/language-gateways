@@ -22,7 +22,8 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
 
 ## Architecture decisions (agreed)
 
-- **Front end:** static site on GitHub Pages at `course.languagegateways.com`. The public landing page
+- **Front end:** static site on GitHub Pages at `fid.languagegateways.com`
+  (`fid` = Flourishing in Diversity; future courses get their own subdomains). The public landing page
   (Book us / Recommend us) can live at `languagegateways.com`.
 - **Backend:** Supabase for auth (email + password, and Google sign-in), Postgres, storage, and Edge Functions
   (for Claude API calls such as the précis and takeaway summaries).

@@ -16,8 +16,8 @@ The code for everything else is already in the repo.
 4. **Authentication → Sign In / Providers → Email**: make sure *Enable email provider* and
    *Confirm email* are both on. Set the minimum password length to 8.
 5. **Authentication → URL Configuration**:
-   - Site URL: `https://course.languagegateways.com`
-   - Redirect URLs: add `https://course.languagegateways.com/**` and `http://localhost:8000/**`
+   - Site URL: `https://fid.languagegateways.com`
+   - Redirect URLs: add `https://fid.languagegateways.com/**` and `http://localhost:8000/**`
 6. **Project Settings → API**: copy the *Project URL* and the *anon public* key into
    `site/assets/config.js`. Both are safe to publish.
 
@@ -27,7 +27,7 @@ The code for everything else is already in the repo.
 2. **APIs & Services → OAuth consent screen**: External; app name *Flourishing in Diversity*;
    support email tim@zipf.me; authorised domain `supabase.co` (add `languagegateways.com` too). Publish the app.
 3. **APIs & Services → Credentials → Create credentials → OAuth client ID**: Web application.
-   - Authorised JavaScript origins: `https://course.languagegateways.com`, `http://localhost:8000`
+   - Authorised JavaScript origins: `https://fid.languagegateways.com`, `http://localhost:8000`
    - Authorised redirect URI: `https://<your-project-ref>.supabase.co/auth/v1/callback`
      (Supabase shows the exact value on its Google provider page.)
 4. Back in Supabase, **Authentication → Sign In / Providers → Google**: enable it and paste the
@@ -35,16 +35,14 @@ The code for everything else is already in the repo.
 
 ## 3. Domain
 
-`languagegateways.com` currently points at Wix (185.230.63.107), so the DNS is managed there.
-In Wix: **Domains → languagegateways.com → Manage DNS records → CNAME → Add record**:
+Done. The DNS for `languagegateways.com` is managed in Wix, which has this CNAME record:
 
 | Host name | Value |
 |-----------|-------|
-| `course`  | `timfnash.github.io` |
+| `fid`     | `timfnash.github.io` |
 
-This only adds the `course.` subdomain; the main Wix site is unaffected.
-DNS changes can take up to a few hours. Once it resolves, tick **Enforce HTTPS** in the repo's
-**Settings → Pages** (GitHub issues the certificate automatically).
+Each course gets its own subdomain (`fid` = *Flourishing in Diversity*); the main Wix site is unaffected.
+Once GitHub has issued the certificate, tick **Enforce HTTPS** in the repo's **Settings → Pages**.
 
 ## 4. Try it
 
@@ -55,7 +53,7 @@ DNS changes can take up to a few hours. Once it resolves, tick **Enforce HTTPS**
 2. Open <http://localhost:8000>, choose **Create account** with tim@zipf.me, confirm the email,
    and check that your profile is pre-filled.
 3. Try creating an account with an email that isn't invited: it should be refused.
-4. Push to `main`; the **Deploy site** workflow publishes `site/` to <https://course.languagegateways.com>.
+4. Push to `main`; the **Deploy site** workflow publishes `site/` to <https://fid.languagegateways.com>.
 
 ## Checking the database rules
 
