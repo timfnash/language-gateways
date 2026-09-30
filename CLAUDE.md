@@ -17,8 +17,9 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   migrations are pasted into the SQL editor.
 - `supabase/tests/`: PGlite tests for the schema and RLS (`npm install && npm test`). Add checks there
   whenever a table or policy changes.
-- `docs/SETUP.md` (one-off account setup) and `docs/INVITATIONS.md` (how Tim adds people).
-- `pipeline/`: the recording → content pipeline.
+- `docs/SETUP.md` (one-off account setup), `docs/INVITATIONS.md` (how Tim adds people) and
+  `docs/LOADING-SESSIONS.md` (loading and publishing session content).
+- `pipeline/`: the recording → content pipeline; `load_session.py` loads a session folder into Supabase.
 
 ## Architecture decisions (agreed)
 
@@ -67,7 +68,16 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   produce invented repeated phrases ("And the light", "It's at the end").
 - Every table recorder also picks up the front speaker, so the talk and the room feedback appear in all of
   them. Attribute room feedback to the table whose own discussion matches it.
-- Slides: render the PDF pages to JPEG at 1400 px wide with PyMuPDF. The Egyptian hieroglyph on the giraffe
-  slide renders as a missing-glyph box in the PDF.
-- Swahili song on slide 9: the slide reads "Sifu Wwana Moyo Wangu", which is probably a typo for "Sifu Bwana". Confirm with Tim.
+- Slides: use Tim's own JPEG export of each slide (2000 px wide, every build step included; Session One had 35
+  visible slides). Rendering the PDF with PyMuPDF also works (the Egyptian hieroglyph shows as a missing-glyph box);
+  Keynote's export of the .pptx substitutes fonts and breaks the layout, so don't use it.
+- The session video is edited: the table discussions are cut out, so segments can run end to end. Tim can paste
+  YouTube's transcript (with times) to set the segment boundaries.
+- Content lives in `~/Sessions/<folder>/content/` (session.json + one Markdown file per segment + contributions/)
+  and is loaded with `pipeline/load_session.py`; see `docs/LOADING-SESSIONS.md`. In a segment's Markdown,
+  `![caption](slide:N)` places the segment's Nth slide and `<!-- contributions -->` marks where the table
+  write-ups or prayers go.
+- The Session One Full Record Claude doc stores its slide images as artifact assets; they can be downloaded one at
+  a time with the Artifact tool's read action and an asset id.
+- Swahili song on slide 9: the slide reads "Sifu Wwana Moyo Wangu", which is probably a typo for "Sifu Bwana" (the write-up says Bwana). Confirm with Tim.
 - Style: British English. Lightly tidy speech (remove ums, false starts and repetition) without changing meaning.

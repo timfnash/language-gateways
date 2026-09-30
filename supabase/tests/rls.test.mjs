@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
-// Runs the migration and seed on an in-process Postgres (PGlite) with a stand-in for
+// Runs the migrations and seed on an in-process Postgres (PGlite) with a stand-in for
 // Supabase's auth schema, then checks the invitation rules and row-level security.
 // Usage: cd supabase/tests && npm install && npm test
 
@@ -12,6 +12,12 @@ const db = new PGlite();
 await db.exec(`
   create role anon nologin; create role authenticated nologin; create role supabase_auth_admin nologin;
   create schema auth;
+  create schema storage;
+  create table storage.buckets (id text primary key, name text, public boolean);
+  create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text);
+  alter table storage.objects enable row level security;
+  grant usage on schema storage to anon, authenticated;
+  grant all on storage.objects to anon, authenticated;
   create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
@@ -19,7 +25,9 @@ await db.exec(`
   grant execute on function auth.uid() to anon, authenticated;
   alter default privileges in schema public grant all on tables to anon, authenticated;
 `);
-await db.exec(readFileSync(`${repo}/migrations/20260930000000_foundations.sql`, 'utf8'));
+for (const file of readdirSync(`${repo}/migrations`).sort()) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
 await db.exec(readFileSync(`${repo}/seed.sql`, 'utf8'));
 await db.exec(`
   insert into public.churches values ('other-church', 'Other Church');
@@ -124,6 +132,73 @@ r = await db.query(`select count(*)::int n from public.profiles`);
 const r2 = await db.query(`select count(*)::int n from public.invitations`);
 await db.exec(`reset role;`);
 check('anon sees no profiles or invitations', r.rows[0].n === 0 && r2.rows[0].n === 0);
+
+// ---------------------------------------------------------------------------
+// Phase 1: content, contributions, progress, media
+// ---------------------------------------------------------------------------
+await db.exec(`
+  insert into public.courses values ('fid', 'Flourishing in Diversity');
+  insert into public.sessions (id, course, number, title, published_at) values
+    ('fid-1', 'fid', 1, 'Creation, language and salvation', now()),
+    ('fid-2', 'fid', 2, 'Babel', null);
+  insert into public.segments (id, session, position, title, body) values
+    ('fid-1-1', 'fid-1', 1, 'Welcome', 'Hello'),
+    ('fid-2-1', 'fid-2', 1, 'Babel', 'Draft');
+  insert into public.contributions (segment, cohort, kind, title, body, shared_with) values
+    ('fid-1-1', 'freedom-church-jersey-2026-09', 'table', 'Table 1', 'Freedom only', 'cohort'),
+    ('fid-1-1', 'other-2026', 'table', 'Table 1', 'Other only', 'cohort'),
+    ('fid-1-1', 'other-2026', 'table', 'Table 2', 'Other, shared', 'everyone'),
+    ('fid-2-1', 'freedom-church-jersey-2026-09', 'table', 'Table 1', 'Unpublished session', 'cohort');
+  insert into storage.objects (bucket_id, name) values ('course-media', 'fid-1/slide-01.jpg'), ('other', 'x');
+`);
+const bucket = (await db.query(`select public from storage.buckets where id = 'course-media'`)).rows[0];
+check('course-media bucket is private', bucket?.public === false);
+
+r = await as(ids.alice, `select id from public.sessions order by id`);
+check('member sees published sessions only', r.rows.map(x => x.id).join() === 'fid-1');
+r = await as(ids.alice, `select id from public.segments order by id`);
+check('member sees segments of published sessions only', r.rows.map(x => x.id).join() === 'fid-1-1');
+r = await as(ids.tim, `select id from public.segments order by id`);
+check('admin sees unpublished segments', r.rows.length === 2);
+await asErr('member cannot edit segments', ids.alice,
+  `insert into public.segments (id, session, position, title) values ('fid-1-9', 'fid-1', 9, 'x')`, 'row-level security');
+r = await as(ids.alice, `update public.segments set title = 'x' returning id`);
+check('member update of segments changes nothing', r.rows.length === 0);
+
+r = await as(ids.alice, `select body from public.contributions order by body`);
+check('member sees own cohort + shared contributions',
+  r.rows.map(x => x.body).join('|') === 'Freedom only|Other, shared', r.rows.map(x => x.body).join('|'));
+r = await as(ids.bob, `select body from public.contributions order by body`);
+check('other church does not see Freedom contributions',
+  r.rows.map(x => x.body).join('|') === 'Other only|Other, shared', r.rows.map(x => x.body).join('|'));
+
+r = await as(ids.alice, `select * from public.record_progress('fid-1-1', 'read')`);
+check('record_progress starts a segment', r.rows[0]?.completed_at === null && r.rows[0]?.user_id === ids.alice);
+r = await as(ids.alice, `select * from public.record_progress('fid-1-1', 'read', true)`);
+const done = r.rows[0]?.completed_at;
+check('record_progress completes it', done !== null && done !== undefined);
+r = await as(ids.alice, `select * from public.record_progress('fid-1-1', 'read', false)`);
+check('completion is kept on later visits', String(r.rows[0]?.completed_at) === String(done));
+await asErr('progress mode must be valid', ids.alice, `select public.record_progress('fid-1-1', 'dance')`, 'check constraint');
+await asErr('member cannot write progress for someone else', ids.alice,
+  `insert into public.progress (user_id, segment, mode) values ('${ids.bob}', 'fid-1-1', 'read')`, 'row-level security');
+r = await as(ids.bob, `select * from public.progress`);
+check('member cannot see others\' progress', r.rows.length === 0);
+r = await as(ids.tim, `select * from public.progress`);
+check('admin sees everyone\'s progress', r.rows.length === 1);
+
+r = await as(ids.alice, `select name from storage.objects`);
+check('member reads course media only', r.rows.map(x => x.name).join() === 'fid-1/slide-01.jpg');
+await asErr('member cannot upload media', ids.alice,
+  `insert into storage.objects (bucket_id, name) values ('course-media', 'evil.jpg')`, 'row-level security');
+r = await as(ids.tim, `insert into storage.objects (bucket_id, name) values ('course-media', 'fid-1/slide-02.jpg') returning name`);
+check('admin uploads media', r.rows.length === 1);
+
+// Someone signed in but without a profile (shouldn't happen, but must see nothing)
+await db.exec(`delete from public.profiles where id = '${ids.bob}'`);
+r = await as(ids.bob, `select count(*)::int n from public.segments`);
+const r3 = await as(ids.bob, `select count(*)::int n from storage.objects`);
+check('no profile, no content', r.rows[0].n === 0 && r3.rows[0].n === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

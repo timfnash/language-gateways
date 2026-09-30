@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flourishing in Diversity</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <header>
+    <div class="inner">
+      <a class="brand" href="home.html">Flourishing in Diversity<small>Language Gateways</small></a>
+      <nav><a href="home.html">Home</a><a href="profile.html">Profile</a><button id="signout" class="link" type="button">Sign out</button></nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <p class="meta" id="crumb"></p>
+    <h1 id="title">Loading…</h1>
+    <p class="lead" id="summary"></p>
+
+    <div class="tabs ui" role="tablist" id="tabs" hidden></div>
+
+    <section id="panel-read" class="prose" role="tabpanel" hidden>
+      <div id="body"></div>
+      <div id="read-end" aria-hidden="true"></div>
+    </section>
+
+    <section id="panel-watch" role="tabpanel" hidden>
+      <div class="video"><div id="player"></div></div>
+      <p class="meta" id="watch-note"></p>
+    </section>
+
+    <section id="panel-slides" role="tabpanel" hidden>
+      <figure class="carousel">
+        <img id="slide" alt="">
+        <figcaption class="ui carousel-bar">
+          <button id="prev-slide" class="secondary" type="button" aria-label="Previous slide">←</button>
+          <span id="slide-count" class="meta" aria-live="polite"></span>
+          <button id="next-slide" class="secondary" type="button" aria-label="Next slide">→</button>
+        </figcaption>
+      </figure>
+    </section>
+
+    <nav class="pager ui" id="pager" aria-label="Segments"></nav>
+  </main>
+
+  <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
+
+  <script type="module">
+    import { marked } from 'https://cdn.jsdelivr.net/npm/marked@18.0.14/+esm';
+    import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.4.16/+esm';
+    import { supabase, requireSignedIn, signOut, pageUrl, loadCourse, recordProgress, signedUrls,
+             isComplete, formatTime, MODES } from './assets/app.js';
+
+    document.getElementById('signout').addEventListener('click', signOut);
+    const $ = id => document.getElementById(id);
+    const render = md => DOMPurify.sanitize(marked.parse(md ?? ''));
+
+    const { profile } = await requireSignedIn();
+    if (profile) {
+      if (!profile.confirmed_at) location.replace(pageUrl('profile.html'));
+      const id = new URLSearchParams(location.search).get('id');
+      const { segments, progress } = await loadCourse();
+      const index = segments.findIndex(s => s.id === id);
+      if (index < 0) {
+        $('title').textContent = 'Not found';
+        $('summary').innerHTML = 'This part of the course isn’t available. <a href="home.html">Back to the course</a>.';
+      } else {
+        await show(segments, index, progress);
+      }
+    }
+
+    async function show(segments, index, progress) {
+      const seg = segments[index];
+      const session = seg.session;
+      const positionInSession = session.segments.findIndex(s => s.id === seg.id) + 1;
+      document.title = `${seg.title} · Flourishing in Diversity`;
+      $('crumb').textContent = `Session ${session.number}: ${session.title} · Part ${positionInSession} of ${session.segments.length}`
+        + (session.published_at ? '' : ' · Draft (only admins can see this)');
+      $('title').textContent = seg.title;
+      $('summary').textContent = seg.summary ?? '';
+
+      const [{ data: full }, { data: contributions }, urls] = await Promise.all([
+        supabase.from('segments').select('body').eq('id', seg.id).single(),
+        supabase.from('contributions').select('kind, title, body, position').eq('segment', seg.id).order('kind').order('position'),
+        signedUrls(seg.slides),
+      ]);
+
+      // Which ways of taking in this segment are available.
+      const available = ['read'];
+      if (session.youtube_id && seg.youtube_start != null) available.push('watch');
+      if (seg.slides.length) available.push('slides');
+
+      const mine = progress[seg.id] ?? {};
+      const tabs = $('tabs');
+      tabs.hidden = available.length < 2;
+      for (const mode of available) {
+        const b = document.createElement('button');
+        b.role = 'tab';
+        b.id = `tab-${mode}`;
+        b.setAttribute('aria-controls', `panel-${mode}`);
+        b.textContent = MODES[mode] + (mine[mode]?.completed_at ? ' ✓' : '');
+        b.addEventListener('click', () => select(mode));
+        tabs.append(b);
+      }
+
+      const started = new Set();
+      const completed = new Set(Object.keys(mine).filter(m => mine[m].completed_at));
+      function complete(mode) {
+        if (completed.has(mode)) return;
+        completed.add(mode);
+        recordProgress(seg.id, mode, true);
+        $(`tab-${mode}`).textContent = `${MODES[mode]} ✓`;
+      }
+
+      const setup = { read: setupRead, watch: setupWatch, slides: setupSlides };
+      function select(mode) {
+        for (const m of available) {
+          $(`panel-${m}`).hidden = m !== mode;
+          $(`tab-${m}`).setAttribute('aria-selected', String(m === mode));
+        }
+        history.replaceState(null, '', `#${mode}`);
+        if (!started.has(mode)) {
+          started.add(mode);
+          if (!completed.has(mode)) recordProgress(seg.id, mode);
+          setup[mode]();
+        }
+      }
+
+      function setupRead() {
+        const body = (full?.body ?? '').replace(/\]\(slide:(\d+)\)/g, (m, n) => `](${urls[seg.slides[n - 1]] ?? ''})`);
+        // Table write-ups and prayers go where the body marks <!-- contributions -->, or at the end.
+        const [before, after = ''] = body.split('<!-- contributions -->');
+        const group = (kind, heading) => {
+          const items = (contributions ?? []).filter(c => c.kind === kind);
+          return items.length
+            ? `<h2>${heading}</h2>` + items.map(c => `<h3>${DOMPurify.sanitize(c.title)}</h3>${render(c.body)}`).join('')
+            : '';
+        };
+        $('body').innerHTML = render(before) + group('table', 'At the tables') + group('prayers', 'Prayers from the tables') + render(after);
+        // Reaching the end of the write-up counts as having read it.
+        new IntersectionObserver((entries, obs) => {
+          if (entries.some(e => e.isIntersecting)) { complete('read'); obs.disconnect(); }
+        }).observe($('read-end'));
+      }
+
+      function setupWatch() {
+        $('watch-note').textContent = `This part runs from ${formatTime(seg.youtube_start)}`
+          + (seg.youtube_end ? ` to ${formatTime(seg.youtube_end)}` : '') + ' of the session video.';
+        const create = () => new YT.Player('player', {
+          host: 'https://www.youtube-nocookie.com',
+          videoId: session.youtube_id,
+          playerVars: { start: seg.youtube_start, ...(seg.youtube_end ? { end: seg.youtube_end } : {}), rel: 0, playsinline: 1 },
+          events: { onStateChange: e => { if (e.data === YT.PlayerState.ENDED) complete('watch'); } },
+        });
+        if (window.YT?.Player) return create();
+        window.onYouTubeIframeAPIReady = create;
+        const s = document.createElement('script');
+        s.src = 'https://www.youtube.com/iframe_api';
+        document.head.append(s);
+      }
+
+      function setupSlides() {
+        let i = 0;
+        const n = seg.slides.length;
+        const go = to => {
+          i = Math.max(0, Math.min(n - 1, to));
+          $('slide').src = urls[seg.slides[i]] ?? '';
+          $('slide').alt = `Slide ${i + 1} of ${n}`;
+          $('slide-count').textContent = `${i + 1} / ${n}`;
+          $('prev-slide').disabled = i === 0;
+          $('next-slide').disabled = i === n - 1;
+          if (i === n - 1) complete('slides');
+        };
+        $('prev-slide').addEventListener('click', () => go(i - 1));
+        $('next-slide').addEventListener('click', () => go(i + 1));
+        document.addEventListener('keydown', e => {
+          if ($('panel-slides').hidden || e.target.closest('input, textarea')) return;
+          if (e.key === 'ArrowLeft') go(i - 1);
+          if (e.key === 'ArrowRight') go(i + 1);
+        });
+        let touchX = null;
+        $('slide').addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, { passive: true });
+        $('slide').addEventListener('touchend', e => {
+          const dx = e.changedTouches[0].clientX - touchX;
+          if (Math.abs(dx) > 40) go(dx < 0 ? i + 1 : i - 1);
+        });
+        go(0);
+      }
+
+      // Previous / next segment across the whole course.
+      const prev = segments[index - 1], next = segments[index + 1];
+      $('pager').innerHTML =
+        (prev ? `<a class="prev" href="segment.html?id=${prev.id}">← ${DOMPurify.sanitize(prev.title)}</a>` : '<span></span>') +
+        (next ? `<a class="next" href="segment.html?id=${next.id}">${DOMPurify.sanitize(next.title)} →</a>` : '<a class="next" href="home.html">Back to the course</a>');
+
+      const wanted = location.hash.slice(1);
+      select(available.includes(wanted) ? wanted : 'read');
+    }
+  </script>
+</body>
+</html>

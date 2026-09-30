@@ -1,21 +1,24 @@
 # Roadmap
 
 ## Phase 0: Foundations
-Code is written and tested (`site/`, `supabase/`); the account setup steps are in `docs/SETUP.md`.
+Done. Account setup steps are in `docs/SETUP.md`.
 
 - [x] GitHub repo `language-gateways` with Pages enabled and the custom domain `fid.languagegateways.com` (DNS CNAME)
-- [ ] Supabase project; Google OAuth client; email + password auth
-- [ ] Tables: `churches`, `cohorts`, `invitations`, `profiles`, with RLS on every table
-- [ ] Signup allowed only for invited emails, enforced server-side
-- [ ] First login: profile pre-filled from the invitation (given name, family name, mother tongue, other languages)
-- [ ] Bulk invitations through Supabase CSV import (documented for Tim)
+- [x] Supabase project; Google OAuth client; email + password auth
+- [x] Tables: `churches`, `cohorts`, `invitations`, `profiles`, with RLS on every table
+- [x] Signup allowed only for invited emails, enforced server-side
+- [x] First login: profile pre-filled from the invitation (given name, family name, mother tongue, other languages)
+- [x] Bulk invitations through Supabase CSV import (documented for Tim)
 
 ## Phase 1: Session One online
-- [ ] Tables: `sessions`, `segments` (text, slides, youtube_start/end), with content in Supabase and not the repo
-- [ ] Segment views: **Read** (write-up plus slides), **Watch** (YouTube embed limited to the segment), **Slides** (carousel)
-- [ ] `progress` table: user × segment × mode (read / watch / slides / listen), with timestamps
-- [ ] Dashboard: "continue where you left off" and completion ticks
-- [ ] Load Session One content (about 6 segments: Welcome & worship, Creation, Language, Discussion 1, Salvation + Discussion 2, Prayer & blessing)
+Built and tested; loading and publishing Session One is in `docs/LOADING-SESSIONS.md`.
+
+- [x] Tables: `sessions`, `segments` (text, slides, youtube_start/end), with content in Supabase and not the repo
+- [x] Segment views: **Read** (write-up plus slides), **Watch** (YouTube embed limited to the segment), **Slides** (carousel)
+- [x] `progress` table: user × segment × mode (read / watch / slides / listen), with timestamps
+- [x] Dashboard: "continue where you left off" and completion ticks
+- [x] Table write-ups and prayers stored per cohort (`contributions`), so other churches don't see them unless shared
+- [ ] Load and publish Session One (6 segments: Welcome and worship, Creation and language, Discussion 1, Salvation, Discussion 2, Prayer and blessing)
 
 ## Phase 2: Personal notes
 - [ ] Notes per segment, with the prompt "What has struck you here?"
