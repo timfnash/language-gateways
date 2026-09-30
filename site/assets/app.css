@@ -113,3 +113,13 @@ button:disabled { opacity: .6; cursor: default; }
 
 .meta { color: var(--muted); font-family: system-ui, sans-serif; font-size: .9rem; }
 .small { font-size: .9rem; }
+
+.prose li { margin: .35rem 0; }
+footer {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font: .85rem system-ui, sans-serif;
+}

@@ -23,15 +23,20 @@ The code for everything else is already in the repo.
 
 ## 2. Google sign-in
 
-1. At <https://console.cloud.google.com>, create a project called `language-gateways`.
-2. **APIs & Services → OAuth consent screen**: External; app name *Flourishing in Diversity*;
-   support email tim@zipf.me; authorised domain `supabase.co` (add `languagegateways.com` too). Publish the app.
-3. **APIs & Services → Credentials → Create credentials → OAuth client ID**: Web application.
+1. At <https://console.cloud.google.com>, create a project called *Flourishing in Diversity*
+   (the project ID underneath is only seen by you).
+2. **Google Auth Platform → Get started**: app name *Flourishing in Diversity*; user support email;
+   audience **External**; contact email.
+3. **Create OAuth client**: Web application.
    - Authorised JavaScript origins: `https://fid.languagegateways.com`, `http://localhost:8000`
-   - Authorised redirect URI: `https://<your-project-ref>.supabase.co/auth/v1/callback`
-     (Supabase shows the exact value on its Google provider page.)
-4. Back in Supabase, **Authentication → Sign In / Providers → Google**: enable it and paste the
-   client ID and client secret.
+   - Authorised redirect URI: `https://qlfzuimffvvpzraeebjp.supabase.co/auth/v1/callback`
+4. Copy the client ID and client secret straight into Supabase, **Authentication → Sign In / Providers → Google**,
+   and enable it. (The secret never goes in the repo.)
+5. **Branding**: home page `https://fid.languagegateways.com`, privacy policy
+   `https://fid.languagegateways.com/privacy.html`, terms `https://fid.languagegateways.com/terms.html`;
+   authorised domains `languagegateways.com` and `supabase.co`.
+6. **Audience → Publish app**. While it's in *Testing*, only listed test users can sign in with Google.
+   The site only asks for name and email, so publishing doesn't need Google's verification.
 
 ## 3. Domain
 
