@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Phase 0: Foundations
+Code is written and tested (`site/`, `supabase/`); the account setup steps are in `docs/SETUP.md`.
+
 - [ ] GitHub repo `language-gateways` with Pages enabled and the custom domain `course.languagegateways.com` (DNS CNAME)
 - [ ] Supabase project; Google OAuth client; email + password auth
 - [ ] Tables: `churches`, `cohorts`, `invitations`, `profiles`, with RLS on every table
