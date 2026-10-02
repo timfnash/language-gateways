@@ -34,7 +34,7 @@
   <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
 
   <script type="module">
-    import { supabase, requireSignedIn, signOut, pageUrl, loadCourse, isComplete, MODES } from './assets/app.js';
+    import { supabase, requireSignedIn, signOut, pageUrl, loadCourse, isComplete, partTitle, MODES } from './assets/app.js';
 
     document.getElementById('signout').addEventListener('click', signOut);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
@@ -67,7 +67,7 @@
       if (target) {
         const c = document.getElementById('continue');
         c.href = `segment.html?id=${target.id}`;
-        c.innerHTML = `<span class="meta">${label}</span><strong>${esc(target.title)}</strong>`
+        c.innerHTML = `<span class="meta">${label}</span><strong>${partTitle(target, esc)}</strong>`
           + `<span class="meta">Session ${target.session.number}: ${esc(target.session.title)}</span>`;
         c.hidden = false;
       }
@@ -84,7 +84,7 @@
             const finished = Object.keys(modes).filter(m => modes[m].completed_at).map(m => MODES[m]);
             return `<li class="${complete ? 'done' : ''}">
               <span class="tick" aria-label="${complete ? 'Done' : 'Not done yet'}">${complete ? '✓' : ''}</span>
-              <a href="segment.html?id=${seg.id}">${esc(seg.title)}</a>
+              <a href="segment.html?id=${seg.id}">${partTitle(seg, esc)}</a>
               ${finished.length ? `<span class="meta">${finished.join(' · ')}</span>` : ''}
             </li>`;
           }).join('')}</ol>

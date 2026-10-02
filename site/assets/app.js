@@ -72,13 +72,17 @@ export async function loadCourse() {
   for (const s of sessions) s.segments.sort((a, b) => a.position - b.position);
   const progress = {};
   for (const r of rows ?? []) (progress[r.segment] ??= {})[r.mode] = r;
+  for (const s of sessions) s.segments.forEach((g, i) => { g.part = `${i + 1}/${s.segments.length}`; });
   return { sessions, progress, segments: sessions.flatMap(s => s.segments.map(g => ({ ...g, session: s }))) };
 }
 
 export const isComplete = modes => Object.values(modes ?? {}).some(m => m.completed_at);
 
-export function recordProgress(segment, mode, completed = false) {
-  return supabase.rpc('record_progress', { p_segment: segment, p_mode: mode, p_completed: completed });
+// Awaited on purpose: supabase-js only sends a request once something waits for its result.
+export async function recordProgress(segment, mode, completed = false) {
+  const { error } = await supabase.rpc('record_progress', { p_segment: segment, p_mode: mode, p_completed: completed });
+  if (error) console.error('Could not save progress', error);
+  return !error;
 }
 
 // Short-lived URLs for private slide images, keyed by storage path.
@@ -88,5 +92,8 @@ export async function signedUrls(paths) {
   if (error) throw error;
   return Object.fromEntries(data.filter(d => d.signedUrl).map(d => [d.path, d.signedUrl]));
 }
+
+// "1/6 Welcome and worship", with the number styled separately.
+export const partTitle = (seg, esc = String) => `<span class="part">${seg.part}</span> ${esc(seg.title)}`;
 
 export const formatTime = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

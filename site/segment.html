@@ -52,7 +52,7 @@
     import { marked } from 'https://cdn.jsdelivr.net/npm/marked@18.0.14/+esm';
     import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.4.16/+esm';
     import { supabase, requireSignedIn, signOut, pageUrl, loadCourse, recordProgress, signedUrls,
-             isComplete, formatTime, MODES } from './assets/app.js';
+             isComplete, formatTime, partTitle, MODES } from './assets/app.js';
 
     document.getElementById('signout').addEventListener('click', signOut);
     const $ = id => document.getElementById(id);
@@ -75,11 +75,10 @@
     async function show(segments, index, progress) {
       const seg = segments[index];
       const session = seg.session;
-      const positionInSession = session.segments.findIndex(s => s.id === seg.id) + 1;
-      document.title = `${seg.title} · Flourishing in Diversity`;
-      $('crumb').textContent = `Session ${session.number}: ${session.title} · Part ${positionInSession} of ${session.segments.length}`
+      document.title = `${seg.part} ${seg.title} · Flourishing in Diversity`;
+      $('crumb').textContent = `Session ${session.number}: ${session.title}`
         + (session.published_at ? '' : ' · Draft (only admins can see this)');
-      $('title').textContent = seg.title;
+      $('title').innerHTML = partTitle(seg, DOMPurify.sanitize);
       $('summary').textContent = seg.summary ?? '';
 
       const [{ data: full }, { data: contributions }, urls] = await Promise.all([
@@ -108,11 +107,12 @@
 
       const started = new Set();
       const completed = new Set(Object.keys(mine).filter(m => mine[m].completed_at));
-      function complete(mode) {
+      async function complete(mode) {
         if (completed.has(mode)) return;
         completed.add(mode);
-        recordProgress(seg.id, mode, true);
-        $(`tab-${mode}`).textContent = `${MODES[mode]} ✓`;
+        // Tick the tab only once the database has it, so the home page agrees.
+        if (await recordProgress(seg.id, mode, true)) $(`tab-${mode}`).textContent = `${MODES[mode]} ✓`;
+        else completed.delete(mode);
       }
 
       const setup = { read: setupRead, watch: setupWatch, slides: setupSlides };
@@ -193,8 +193,8 @@
       // Previous / next segment across the whole course.
       const prev = segments[index - 1], next = segments[index + 1];
       $('pager').innerHTML =
-        (prev ? `<a class="prev" href="segment.html?id=${prev.id}">← ${DOMPurify.sanitize(prev.title)}</a>` : '<span></span>') +
-        (next ? `<a class="next" href="segment.html?id=${next.id}">${DOMPurify.sanitize(next.title)} →</a>` : '<a class="next" href="home.html">Back to the course</a>');
+        (prev ? `<a class="prev" href="segment.html?id=${prev.id}">← ${partTitle(prev, DOMPurify.sanitize)}</a>` : '<span></span>') +
+        (next ? `<a class="next" href="segment.html?id=${next.id}">${partTitle(next, DOMPurify.sanitize)} →</a>` : '<a class="next" href="home.html">Back to the course</a>');
 
       const wanted = location.hash.slice(1);
       select(available.includes(wanted) ? wanted : 'read');
