@@ -30,6 +30,7 @@
     <section id="panel-watch" role="tabpanel" hidden>
       <div class="video"><div id="player"></div></div>
       <p class="meta" id="watch-note"></p>
+      <p class="message ok ui" id="watch-end" hidden></p>
     </section>
 
     <section id="panel-slides" role="tabpanel" hidden>
@@ -149,12 +150,37 @@
       function setupWatch() {
         $('watch-note').textContent = `This part runs from ${formatTime(seg.youtube_start)}`
           + (seg.youtube_end ? ` to ${formatTime(seg.youtube_end)}` : '') + ' of the session video.';
-        const create = () => new YT.Player('player', {
+        // YouTube's own start/end only hold for the first play, so keep playback inside this part
+        // ourselves: pause at the end, and jump back in if someone seeks outside the part.
+        const start = seg.youtube_start, end = seg.youtube_end;
+        let player, timer;
+        const finished = () => {
+          const next = segments[index + 1];
+          $('watch-end').innerHTML = 'That’s the end of this part.'
+            + (next ? ` <a href="segment.html?id=${next.id}#watch">Watch ${partTitle(next, DOMPurify.sanitize)} →</a>` : '');
+          $('watch-end').hidden = false;
+          complete('watch');
+        };
+        const keepInside = () => {
+          const t = player.getCurrentTime();
+          if (t < start - 1) player.seekTo(start, true);
+          else if (end && t >= end) { player.pauseVideo(); player.seekTo(end, true); finished(); }
+        };
+        const create = () => { player = new YT.Player('player', {
           host: 'https://www.youtube-nocookie.com',
           videoId: session.youtube_id,
-          playerVars: { start: seg.youtube_start, ...(seg.youtube_end ? { end: seg.youtube_end } : {}), rel: 0, playsinline: 1 },
-          events: { onStateChange: e => { if (e.data === YT.PlayerState.ENDED) complete('watch'); } },
-        });
+          playerVars: { start, ...(end ? { end } : {}), rel: 0, playsinline: 1 },
+          events: { onStateChange: e => {
+            clearInterval(timer);
+            if (e.data === YT.PlayerState.PLAYING) {
+              // Pressing play at the end of the part starts it again from the beginning.
+              if (end && player.getCurrentTime() >= end - 1) player.seekTo(start, true);
+              $('watch-end').hidden = true;
+              timer = setInterval(keepInside, 250);
+            }
+            if (e.data === YT.PlayerState.ENDED) finished();
+          } },
+        }); };
         if (window.YT?.Player) return create();
         window.onYouTubeIframeAPIReady = create;
         const s = document.createElement('script');
