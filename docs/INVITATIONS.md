@@ -25,16 +25,16 @@ name or email.
 
 ## Removing someone
 
-**Remove** on their row in the invitations list:
+The **trash icon** on their row in the invitations list:
 
 - **Not joined yet:** removes the invitation.
 - **Joined:** permanently deletes their account, profile, notes and progress, and their invitation.
   They can't sign in again unless you invite them again. This can't be undone.
 
-Admins can't be removed this way. To remove an admin, first take their email out of the `admins` table in
-the Supabase table editor.
+Admins can't be removed this way (their trash icon is greyed out): remove their admin rights first.
 
 ## Admins
 
-Admins can approve shared notes, see who wrote them, and manage churches, cohorts and invitations. To add
-one, insert their email into the `admins` table in Supabase (it's only editable there).
+Admins can approve shared notes, see who wrote them, and manage churches, cohorts, invitations and people.
+The **shield icon** on a row shows who's an admin (filled) and switches admin rights on or off. You can't
+remove your own admin rights; another admin has to do it.

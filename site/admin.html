@@ -159,18 +159,20 @@
       loadNotes();
 
       // ---- Invitations, churches and cohorts -----------------------------------
-      let churches = [], cohorts = [], invites = [], joined = new Set();
-      const cohortLabel = c => `${churches.find(ch => ch.id === c.church)?.name ?? c.church}: ${c.name}`;
+      let churches = [], cohorts = [], invites = [], joined = new Set(), admins = new Set();
+      const cohortLabel = c => `${churches.find(ch => ch.id === c.church)?.name ?? c.church} · ${c.name}`;
       const options = (items, label, all) => (all ? `<option value="">${all}</option>` : '') +
         items.map(i => `<option value="${esc(i.id)}">${esc(label(i))}</option>`).join('');
 
       async function loadAll() {
-        const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }] = await Promise.all([
+        const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: adminRows }] = await Promise.all([
           supabase.from('churches').select('id, name').order('name'),
           supabase.from('cohorts').select('id, church, name').order('created_at', { ascending: false }),
           supabase.from('invitations').select('*').order('created_at', { ascending: false }),
           supabase.from('profiles').select('email'),
+          supabase.rpc('admin_list_admins'),
         ]);
+        admins = new Set((adminRows ?? []).map(a => typeof a === 'string' ? a : a.admin_list_admins ?? a.email));
         churches = ch ?? []; cohorts = cs ?? []; invites = inv ?? [];
         joined = new Set((profiles ?? []).map(p => p.email));
 
@@ -198,11 +200,24 @@
         $('invite-count').textContent = `${shown.length} invited, ${shown.filter(i => joined.has(i.email)).length} joined`
           + (filtered ? ` (filtered from ${invites.length})` : '') + '.';
         const cohortName = id => { const c = cohorts.find(c => c.id === id); return c ? cohortLabel(c) : id; };
-        $('invites').innerHTML = `<thead><tr><th>Email</th><th>Name</th><th>Cohort</th><th>Languages</th><th>Joined</th><th></th></tr></thead><tbody>` +
-          (shown.length ? shown.map(i => `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
-            <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
-            <td>${joined.has(i.email) ? '✓' : ''}</td>
-            <td><button type="button" class="link danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email)}">Remove</button></td></tr>`).join('')
+        const ICON = {
+          trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>',
+          shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
+        };
+        const me = profile.email;
+        $('invites').innerHTML = `<thead><tr><th>Email</th><th>Name</th><th>Cohort</th><th>Languages</th><th>Joined</th><th><span class="visually-hidden">Admin and remove</span></th></tr></thead><tbody>` +
+          (shown.length ? shown.map(i => {
+            const isAdmin = admins.has(i.email), isMe = i.email === me;
+            const adminTitle = isMe ? 'You’re an admin. Another admin can remove your admin rights.'
+              : isAdmin ? `Admin. Click to remove admin rights from ${i.email}.` : `Click to make ${i.email} an admin.`;
+            const removeTitle = isAdmin ? 'Remove admin rights before removing this person.' : `Remove ${i.email}`;
+            return `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
+              <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
+              <td>${joined.has(i.email) ? '✓' : ''}</td>
+              <td class="actions"><button type="button" class="icon-btn admin-toggle" data-admin="${esc(i.email)}" aria-pressed="${isAdmin}"
+                    title="${esc(adminTitle)}" aria-label="${esc(adminTitle)}"${isMe ? ' disabled' : ''}>${ICON.shield}</button><button type="button" class="icon-btn danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email)}"
+                    title="${esc(removeTitle)}" aria-label="${esc(removeTitle)}"${isAdmin ? ' disabled' : ''}>${ICON.trash}</button></td></tr>`;
+          }).join('')
           : `<tr><td colspan="6" class="meta">Nobody matches.</td></tr>`) + '</tbody>';
       }
       $('f-church').addEventListener('change', () => { fillCohortFilter(); drawInvites(); });
@@ -210,6 +225,19 @@
       $('f-search').addEventListener('input', drawInvites);
 
       $('invites').addEventListener('click', async e => {
+        const t = e.target.closest('button[data-admin]');
+        if (t) {
+          const email = t.dataset.admin, makeAdmin = t.getAttribute('aria-pressed') !== 'true';
+          const question = makeAdmin
+            ? `Make ${email} an admin?\n\nThey'll be able to see who wrote shared notes, approve notes, and manage churches, cohorts, invitations and people.`
+            : `Remove admin rights from ${email}?`;
+          if (!confirm(question)) return;
+          t.disabled = true;
+          const { error } = await supabase.rpc('admin_set_admin', { p_email: email, p_admin: makeAdmin });
+          if (error) { t.disabled = false; return showMessage($('remove-message'), error.message); }
+          showMessage($('remove-message'), makeAdmin ? `${email} is now an admin.` : `${email} is no longer an admin.`, 'ok');
+          return loadAll();
+        }
         const b = e.target.closest('button[data-remove]');
         if (!b) return;
         const email = b.dataset.remove, hasAccount = b.dataset.joined === 'true';

@@ -265,6 +265,19 @@ footer a { color: var(--muted); }
 .filters label { margin: 0; flex: 1 1 12rem; }
 .filters select, .filters input { margin-top: 6px; }
 button.link.danger { color: var(--error-text); font-size: .85rem; }
+.icon-btn {
+  margin: 0; padding: 6px; line-height: 0; border: none; border-radius: 8px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn:hover:not(:disabled) { background: var(--bg); color: var(--brand); }
+.icon-btn.danger:hover:not(:disabled) { color: var(--error-text); }
+.icon-btn:disabled { opacity: .35; cursor: default; }
+.admin-toggle[aria-pressed='true'] { color: var(--brand); }
+.admin-toggle[aria-pressed='true'] svg { fill: currentColor; }
+.admin-toggle[aria-pressed='true']:disabled { opacity: 1; }
+.invites td.actions { width: 1%; white-space: nowrap; padding-top: 6px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .group h2 { margin: 0; }
 .group .table-wrap { margin-top: 12px; box-shadow: none; }
 #groups { margin-bottom: 8px; }
