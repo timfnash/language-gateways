@@ -277,6 +277,9 @@ button.link.danger { color: var(--error-text); font-size: .85rem; }
 .admin-toggle[aria-pressed='true'] svg { fill: currentColor; }
 .admin-toggle[aria-pressed='true']:disabled { opacity: 1; }
 .invites td.actions { width: 1%; white-space: nowrap; padding-top: 6px; }
+.invites td.actions > * { vertical-align: middle; }
+.icon { display: inline-block; width: 30px; height: 30px; padding: 6px; line-height: 0; color: var(--brand); }
+.icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .group h2 { margin: 0; }
 .group .table-wrap { margin-top: 12px; box-shadow: none; }
