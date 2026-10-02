@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;600&display=swap" rel="stylesheet">
+<title>Confirm your new email</title>
+</head>
+<body style="margin:0;padding:0;background:#FBF8F2;font-family:'Jost',Arial,Helvetica,sans-serif;">
+<span style="display:none;max-height:0;overflow:hidden;opacity:0;">Confirm the new email address for your Flourishing in Diversity account.</span>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#FBF8F2;">
+  <tr><td align="center" style="padding:24px 12px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;">
+      <tr><td align="center" style="background:#510074;border-radius:18px 18px 0 0;padding:18px 24px;">
+        <img src="https://fid.languagegateways.com/assets/language-gateways.png" width="96" alt="Language Gateways"
+             style="display:block;width:96px;height:auto;border:0;color:#FBF8F2;font-family:'Jost',Arial,sans-serif;font-weight:600;letter-spacing:2px;">
+      </td></tr>
+      <tr><td style="background:#FFFFFF;border-radius:0 0 18px 18px;padding:32px 32px 24px;">
+        <p style="margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#8C6F1E;">Flourishing in Diversity</p>
+        <h1 style="margin:0 0 20px;font-size:26px;line-height:1.15;font-weight:600;text-transform:uppercase;color:#510074;">Confirm your new email</h1>
+        <p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#221A25;">You asked to change the email address for your Flourishing in Diversity account to {{ .NewEmail }}.</p><p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#221A25;">Click the button to confirm the change.</p>
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:8px 0 24px;">
+          <tr><td align="center" bgcolor="#510074" style="border-radius:999px;">
+            <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;font-size:14px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#FBF8F2;text-decoration:none;border-radius:999px;">Confirm new email</a>
+          </td></tr>
+        </table>
+        
+        <p style="margin:0 0 4px;font-size:13px;line-height:1.5;color:#5F5763;">If the button doesn’t work, copy this link into your browser:</p>
+        <p style="margin:0 0 20px;font-size:13px;line-height:1.5;word-break:break-all;"><a href="{{ .ConfirmationURL }}" style="color:#510074;">{{ .ConfirmationURL }}</a></p>
+        <p style="margin:0;padding-top:16px;border-top:1px solid #E7E0D2;font-size:13px;line-height:1.5;color:#5F5763;">If you didn’t ask to change your email address, please let us know at courses@languagegateways.com.</p>
+      </td></tr>
+      <tr><td align="center" style="padding:16px 24px;font-size:12px;line-height:1.5;color:#5F5763;letter-spacing:.5px;">
+        Language Gateways · Zipf (Jersey) Ltd<br>
+        Questions? <a href="mailto:courses@languagegateways.com" style="color:#5F5763;">courses@languagegateways.com</a>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

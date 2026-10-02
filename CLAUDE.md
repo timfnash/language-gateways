@@ -15,6 +15,7 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
 - `supabase/migrations/`: the database schema, RLS and invitation-only signup (hook + auth.users trigger).
   `supabase/seed.sql` holds the first church, cohort and admin. No Supabase CLI or Docker on this Mac:
   migrations are pasted into the SQL editor.
+- `supabase/email-templates/`: branded HTML for Supabase's auth emails (pasted into the dashboard; see its README).
 - `supabase/tests/`: PGlite tests for the schema and RLS (`npm install && npm test`). Add checks there
   whenever a table or policy changes.
 - `docs/SETUP.md` (one-off account setup), `docs/INVITATIONS.md` (how Tim adds people) and

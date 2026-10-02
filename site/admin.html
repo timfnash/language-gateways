@@ -114,12 +114,46 @@
     </section>
   </main>
 
+  <!-- In-page confirmations: browsers can silently block repeated confirm() pop-ups. -->
+  <dialog class="ask ui" id="ask">
+    <form method="dialog">
+      <h2 id="ask-title"></h2>
+      <p id="ask-body"></p>
+      <input id="ask-input" readonly hidden>
+      <div class="ask-buttons">
+        <button value="cancel" class="secondary" id="ask-cancel">Cancel</button>
+        <button value="ok" id="ask-ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+
   <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
 
   <script type="module">
     import { supabase, requireSignedIn, showMessage, pageUrl } from './assets/app.js';
 
     const $ = id => document.getElementById(id);
+
+    // ask('Question?\n\nMore detail.', { ok: 'Remove', danger: true }) resolves true if confirmed.
+    // tell(message) shows a message with just OK; tell(message, { value }) also shows text to copy.
+    function ask(text, { ok = 'OK', danger = false, cancel = true, value = null } = {}) {
+      const [title, ...rest] = text.split('\n\n');
+      $('ask-title').textContent = title;
+      $('ask-body').textContent = rest.join('\n\n');
+      $('ask-body').hidden = !rest.length;
+      $('ask-input').hidden = value === null;
+      if (value !== null) $('ask-input').value = value;
+      $('ask-ok').textContent = ok;
+      $('ask-ok').classList.toggle('danger', danger);
+      $('ask-cancel').hidden = !cancel;
+      return new Promise(resolve => {
+        $('ask').addEventListener('close', () => resolve($('ask').returnValue === 'ok'), { once: true });
+        $('ask').returnValue = '';
+        $('ask').showModal();
+        if (value !== null) $('ask-input').select(); else (cancel ? $('ask-cancel') : $('ask-ok')).focus();
+      });
+    }
+    const tell = (text, opts = {}) => ask(text, { ...opts, cancel: false });
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
     const when = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -167,7 +201,7 @@
       $('requests').addEventListener('click', async e => {
         const ok = e.target.closest('button[data-approve]'), no = e.target.closest('button[data-decline]');
         if (!ok && !no) return;
-        if (no && !confirm(`Decline ${no.dataset.email}? This deletes the account they created.`)) return;
+        if (no && !await ask(`Decline ${no.dataset.email}?\n\nThis deletes the account they created.`, { ok: 'Decline', danger: true })) return;
         (ok || no).disabled = true;
         const { error } = ok
           ? await supabase.rpc('approve_join_request', { p_user: ok.dataset.approve })
@@ -203,7 +237,7 @@
         if (!b) return;
         b.disabled = true;
         const { error } = await supabase.rpc('set_note_approval', { p_id: b.dataset.id, p_approved: b.dataset.approve === 'true' });
-        if (error) { alert(error.message); b.disabled = false; return; }
+        if (error) { tell(error.message); b.disabled = false; return; }
         loadNotes();
       });
       if (isAdmin) loadNotes();
@@ -300,7 +334,7 @@
             admin: `Make ${email} an admin?\n\nThey'll be able to see who wrote shared notes, approve notes, and manage churches, cohorts, invitations and people.`,
             none: `Remove admin rights from ${email}?`,
           }[next];
-          if (!confirm(question)) return;
+          if (!await ask(question, { ok: { church: 'Make church admin', admin: 'Make admin', none: 'Remove admin rights' }[next] })) return;
           t.disabled = true;
           const { error } = await supabase.rpc('admin_set_role', { p_email: email, p_role: next });
           if (error) { t.disabled = false; return showMessage($('remove-message'), error.message); }
@@ -312,8 +346,8 @@
         const email = b.dataset.remove, hasAccount = b.dataset.joined === 'true';
         const question = hasAccount
           ? `Remove ${email}?\n\nThis permanently deletes their account, profile, notes and progress, and their invitation. They won't be able to sign in. This can't be undone.`
-          : `Remove the invitation for ${email}? They haven't signed up yet, so nothing else is affected.`;
-        if (!confirm(question)) return;
+          : `Remove the invitation for ${email}?\n\nThey haven't signed up yet, so nothing else is affected.`;
+        if (!await ask(question, { ok: hasAccount ? 'Delete account' : 'Remove invitation', danger: true })) return;
         b.disabled = true;
         const { data, error } = await supabase.rpc('admin_remove_person', { p_email: email });
         if (error) { b.disabled = false; return showMessage($('remove-message'), error.message); }
@@ -345,15 +379,15 @@
         if (copy) {
           const c = cohorts.find(c => c.id === copy.dataset.copy);
           try { await navigator.clipboard.writeText(joinUrl(c)); copy.textContent = 'Copied'; }
-          catch { prompt('Copy this join link:', joinUrl(c)); }
+          catch { tell('Copy this join link', { value: joinUrl(c) }); }
           setTimeout(() => { copy.textContent = 'Copy link'; }, 2000);
         }
         if (fresh) {
-          if (!confirm('Make a new join link for this cohort? The old link will stop working.')) return;
+          if (!await ask('Make a new join link for this cohort?\n\nThe old link will stop working, so anyone who hasn’t used it yet will need the new one.', { ok: 'Make new link' })) return;
           const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
           const code = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => chars[b % chars.length]).join('');
           const { error } = await supabase.from('cohorts').update({ join_code: code }).eq('id', fresh.dataset.newCode);
-          if (error) return alert(error.message);
+          if (error) return tell(error.message);
           loadAll();
         }
       });
@@ -361,7 +395,7 @@
         const box = e.target.closest('input[data-approval]');
         if (!box) return;
         const { error } = await supabase.from('cohorts').update({ join_requires_approval: box.checked }).eq('id', box.dataset.approval);
-        if (error) { box.checked = !box.checked; alert(error.message); }
+        if (error) { box.checked = !box.checked; tell(error.message); }
       });
 
       // IDs are suggested from the names (and start date) until someone edits them by hand.
