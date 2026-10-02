@@ -13,12 +13,15 @@ Needs SUPABASE_URL and SUPABASE_SECRET_KEY (Project Settings → API Keys → se
 environment or in a .env file at the repo root. The secret key bypasses row-level security:
 never commit it or put it in the site.
 """
-import argparse, json, os, re, sys, urllib.error, urllib.request
+import argparse, json, os, re, ssl, sys, urllib.error, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 BUCKET = 'course-media'
+
+# python.org's Python doesn't use the macOS certificate store; fall back to the system bundle.
+SSL = ssl.create_default_context(cafile='/etc/ssl/cert.pem' if Path('/etc/ssl/cert.pem').exists() else None)
 
 
 def load_env():
@@ -57,11 +60,11 @@ class Supabase:
 
     def request(self, method, path, body=None, headers=None, raw=None):
         data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
-        h = {'apikey': self.key, 'Content-Type': 'application/json'}
+        h = {'apikey': self.key, 'Content-Type': 'application/json'}  # new-style keys go in apikey only
         h.update(headers or {})
         req = urllib.request.Request(self.url + path, data=data, method=method, headers=h)
         try:
-            with urllib.request.urlopen(req) as r:
+            with urllib.request.urlopen(req, context=SSL) as r:
                 text = r.read().decode()
                 return json.loads(text) if text else None
         except urllib.error.HTTPError as e:
