@@ -47,13 +47,16 @@
       <h2>Nearly there</h2>
       <p>We’ve sent you an email. Click the link in it to confirm your address, then sign in.</p>
       <p id="done-approval"></p>
+      <p class="meta ui">No email after a few minutes? Check your spam folder, or
+        <button type="button" class="link" id="resend">send it again</button>.</p>
+      <p class="message" id="resend-message" hidden></p>
     </div>
   </main>
 
   <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
 
   <script type="module">
-    import { supabase, configured, pageUrl, showMessage, friendlyError, notConfiguredBanner } from './assets/app.js';
+    import { supabase, configured, pageUrl, showMessage, friendlyError, notConfiguredBanner, resendConfirmation } from './assets/app.js';
 
     const $ = id => document.getElementById(id);
     const code = new URLSearchParams(location.search).get('c')?.trim();
@@ -97,6 +100,13 @@
           ? `Someone from ${cohort.church} or the course team will then approve your request. Until then you’ll see a short “waiting for approval” message when you sign in.`
           : 'You’ll then go straight into the course.';
         $('done').hidden = false;
+      });
+
+      $('resend').addEventListener('click', async e => {
+        e.currentTarget.disabled = true;
+        const problem = await resendConfirmation($('email').value.trim());
+        showMessage($('resend-message'), problem ?? 'Sent again. Check your inbox for the link.', problem ? 'error' : 'ok');
+        setTimeout(() => { e.target.disabled = false; }, 30000);
       });
     }
   </script>

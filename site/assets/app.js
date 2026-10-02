@@ -47,6 +47,12 @@ export async function signOut() {
   location.replace(pageUrl('index.html'));
 }
 
+// Send the "confirm your email address" email again (for a lost or expired link).
+export async function resendConfirmation(email) {
+  const { error } = await supabase.auth.resend({ type: 'signup', email, options: { emailRedirectTo: pageUrl('index.html') } });
+  return error ? friendlyError(error) : null;
+}
+
 // Where a signed-in person goes next: the profile page until they've confirmed it, then home.
 // People waiting for approval go home, which explains the wait.
 export async function nextPage(userId) {

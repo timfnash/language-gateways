@@ -24,6 +24,7 @@
       </div>
 
       <p id="message" class="message" hidden></p>
+      <p class="ui" id="resend-row" hidden><button type="button" class="secondary" id="resend">Send the confirmation email again</button></p>
 
       <form id="form-signin" aria-labelledby="tab-signin">
         <label for="signin-email">Email</label>
@@ -52,7 +53,7 @@
   <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
 
   <script type="module">
-    import { supabase, configured, pageUrl, showMessage, friendlyError, notConfiguredBanner, nextPage } from './assets/app.js';
+    import { supabase, configured, pageUrl, showMessage, friendlyError, notConfiguredBanner, nextPage, resendConfirmation } from './assets/app.js';
 
     const message = document.getElementById('message');
     const tabs = { signin: document.getElementById('tab-signin'), signup: document.getElementById('tab-signup') };
@@ -98,6 +99,15 @@
             password: document.getElementById('signin-password').value,
           });
           if (error) showMessage(message, friendlyError(error));
+          document.getElementById('resend-row').hidden = !/Email not confirmed/i.test(error?.message ?? '');
+        });
+      });
+
+      document.getElementById('resend').addEventListener('click', e => {
+        busy(e.currentTarget, async () => {
+          const problem = await resendConfirmation(document.getElementById('signin-email').value.trim());
+          showMessage(message, problem ?? 'We’ve sent it again. Check your inbox (and spam folder) for the link, then sign in.', problem ? 'error' : 'ok');
+          if (!problem) document.getElementById('resend-row').hidden = true;
         });
       });
 

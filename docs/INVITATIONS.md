@@ -25,6 +25,10 @@ one stops working); untick **Needs approval** to let people from that link strai
 **Requests to join** tab: **Approve** lets them in and adds them to the invitations list; **Decline**
 deletes the account they created. Church admins see only their own church's requests.
 
+A request marked **Email not confirmed yet** is from someone who hasn't clicked the link in their
+confirmation email. They can't sign in until they do, even once approved; the sign-in page offers to
+send the email again. If it stays unconfirmed, they may have mistyped their address.
+
 ## Inviting
 
 **Invitations** tab:
@@ -34,7 +38,8 @@ deletes the account they created. Church admins see only their own church's requ
   Only `email` and `cohort` are needed; the church comes from the cohort. Emails can be in any case.
   People already invited are skipped, and any row with an unknown cohort is listed so you can fix it.
 
-The list below shows everyone invited; a tick means they've joined. Filter it by church, cohort,
+The list below shows everyone invited; a tick means they've joined, and an envelope means they've
+signed up but haven't confirmed their email address yet. Filter it by church, cohort,
 status (all invitees, joined, not yet joined), or a name or email.
 
 ## Removing someone
