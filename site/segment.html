@@ -8,14 +8,10 @@
   <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
-  <header>
-    <div class="inner">
-      <a class="brand" href="home.html" aria-label="Flourishing in Diversity: home"><span class="logo" aria-hidden="true"><span>Language</span><span class="barriers">Barriers</span><span class="gateways">Gateways</span></span><span class="course">Flourishing in Diversity</span></a>
-      <nav><a href="home.html">Home</a><a href="profile.html">Profile</a><button id="signout" class="link" type="button">Sign out</button></nav>
-    </div>
-  </header>
+  <header id="site-header"></header>
 
-  <main id="main">
+  <main id="main" class="part-layout">
+    <article>
     <p class="kicker" id="crumb"></p>
     <h1 id="title">Loading…</h1>
     <p class="lead" id="summary"></p>
@@ -45,6 +41,8 @@
     </section>
 
     <nav class="pager ui" id="pager" aria-label="Segments"></nav>
+    </article>
+    <aside class="part-nav ui" id="part-nav" aria-label="This session"></aside>
   </main>
 
   <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
@@ -52,10 +50,8 @@
   <script type="module">
     import { marked } from 'https://cdn.jsdelivr.net/npm/marked@18.0.14/+esm';
     import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.4.16/+esm';
-    import { supabase, requireSignedIn, signOut, pageUrl, loadCourse, recordProgress, signedUrls,
+    import { supabase, requireSignedIn, pageUrl, loadCourse, recordProgress, signedUrls,
              isComplete, formatTime, partTitle, MODES } from './assets/app.js';
-
-    document.getElementById('signout').addEventListener('click', signOut);
     const $ = id => document.getElementById(id);
     const render = md => DOMPurify.sanitize(marked.parse(md ?? ''));
 
@@ -112,7 +108,7 @@
         if (completed.has(mode)) return;
         completed.add(mode);
         // Tick the tab only once the database has it, so the home page agrees.
-        if (await recordProgress(seg.id, mode, true)) $(`tab-${mode}`).textContent = `${MODES[mode]} ✓`;
+        if (await recordProgress(seg.id, mode, true)) { $(`tab-${mode}`).textContent = `${MODES[mode]} ✓`; drawNav(); }
         else completed.delete(mode);
       }
 
@@ -216,6 +212,18 @@
         go(0);
       }
 
+      // Sidebar on wide screens: every part of this session, with ticks.
+      const navItem = s => {
+        const done = s.id === seg.id ? completed.size > 0 : isComplete(progress[s.id]);
+        return `<li class="${done ? 'done' : ''}${s.id === seg.id ? ' current' : ''}" data-seg="${s.id}">
+          <span class="tick">${done ? '✓' : ''}</span>
+          <a href="segment.html?id=${s.id}"${s.id === seg.id ? ' aria-current="page"' : ''}>${partTitle(s, DOMPurify.sanitize)}</a></li>`;
+      };
+      const drawNav = () => {
+        $('part-nav').innerHTML = `<p class="kicker">Session ${session.number}</p><ol class="segments">${session.segments.map(navItem).join('')}</ol>`;
+      };
+      drawNav();
+
       // Previous / next segment across the whole course.
       const prev = segments[index - 1], next = segments[index + 1];
       $('pager').innerHTML =
@@ -226,5 +234,6 @@
       select(available.includes(wanted) ? wanted : 'read');
     }
   </script>
+  <script type="module" src="assets/header.js"></script>
 </body>
 </html>

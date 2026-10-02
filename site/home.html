@@ -8,19 +8,18 @@
   <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
-  <header>
-    <div class="inner">
-      <a class="brand" href="home.html" aria-label="Flourishing in Diversity: home"><span class="logo" aria-hidden="true"><span>Language</span><span class="barriers">Barriers</span><span class="gateways">Gateways</span></span><span class="course">Flourishing in Diversity</span></a>
-      <nav><a href="profile.html">Profile</a><button id="signout" class="link" type="button">Sign out</button></nav>
-    </div>
-  </header>
+  <header id="site-header"></header>
 
   <main>
+    <div class="split">
+    <div class="intro">
     <p class="kicker">Your course</p>
     <h1 id="greeting">Welcome</h1>
     <p class="lead">A five-session course on how a church’s linguistic diversity helps it flourish.</p>
 
+    </div>
     <a id="continue" class="card continue" hidden></a>
+    </div>
 
     <div id="sessions"></div>
 
@@ -35,9 +34,7 @@
   <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
 
   <script type="module">
-    import { supabase, requireSignedIn, signOut, pageUrl, loadCourse, isComplete, partTitle, MODES } from './assets/app.js';
-
-    document.getElementById('signout').addEventListener('click', signOut);
+    import { supabase, requireSignedIn, pageUrl, loadCourse, isComplete, partTitle, MODES } from './assets/app.js';
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 
     const { profile } = await requireSignedIn();
@@ -76,9 +73,11 @@
       document.getElementById('sessions').innerHTML = sessions.map(session => {
         const done = session.segments.filter(s => isComplete(progress[s.id])).length;
         return `<section class="card session">
+          <div class="session-info">
           <h2>Session ${session.number}: ${esc(session.title)}${session.published_at ? '' : ' <span class="badge">Draft</span>'}</h2>
           ${session.summary ? `<p>${esc(session.summary)}</p>` : ''}
           <p class="meta">${done} of ${session.segments.length} parts done</p>
+          </div>
           <ol class="segments ui">${session.segments.map(seg => {
             const modes = progress[seg.id] ?? {};
             const complete = isComplete(modes);
@@ -93,5 +92,6 @@
       }).join('');
     }
   </script>
+  <script type="module" src="assets/header.js"></script>
 </body>
 </html>

@@ -8,16 +8,14 @@
   <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
-  <header>
-    <div class="inner">
-      <a class="brand" href="home.html" aria-label="Flourishing in Diversity: home"><span class="logo" aria-hidden="true"><span>Language</span><span class="barriers">Barriers</span><span class="gateways">Gateways</span></span><span class="course">Flourishing in Diversity</span></a>
-      <nav><a href="home.html">Home</a><button id="signout" class="link" type="button">Sign out</button></nav>
-    </div>
-  </header>
+  <header id="site-header"></header>
 
-  <main>
+  <main class="split top">
+    <div class="intro">
+    <p class="kicker">Your account</p>
     <h1 id="heading">Your profile</h1>
     <p class="lead" id="intro">These details help us shape the course around the languages in the room.</p>
+    </div>
 
     <form id="form" class="card" hidden>
       <p id="message" class="message" hidden></p>
@@ -46,13 +44,11 @@
   <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
 
   <script type="module">
-    import { supabase, requireSignedIn, showMessage, friendlyError, signOut, pageUrl } from './assets/app.js';
+    import { supabase, requireSignedIn, showMessage, friendlyError, pageUrl } from './assets/app.js';
 
     const fields = ['given_name', 'family_name', 'mother_tongue', 'other_languages'];
     const form = document.getElementById('form');
     const message = document.getElementById('message');
-
-    document.getElementById('signout').addEventListener('click', signOut);
 
     const { profile } = await requireSignedIn();
     if (profile) {
@@ -87,5 +83,6 @@
       });
     }
   </script>
+  <script type="module" src="assets/header.js"></script>
 </body>
 </html>
