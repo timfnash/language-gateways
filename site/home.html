@@ -42,7 +42,7 @@
       if (!profile.confirmed_at) location.replace(pageUrl('profile.html'));
       if (profile.given_name) document.getElementById('greeting').textContent = `Welcome, ${profile.given_name}`;
 
-      const [{ sessions, progress, segments }, { data: isAdmin }] = await Promise.all([
+      const [{ sessions, progress, notes, segments }, { data: isAdmin }] = await Promise.all([
         loadCourse(), supabase.rpc('is_admin'),
       ]);
       document.getElementById('admin-note').hidden = !isAdmin;
@@ -82,6 +82,7 @@
             const modes = progress[seg.id] ?? {};
             const complete = isComplete(modes);
             const finished = Object.keys(modes).filter(m => modes[m].completed_at).map(m => MODES[m]);
+            if (notes.has(seg.id)) finished.push('Note');
             return `<li class="${complete ? 'done' : ''}">
               <span class="tick" aria-label="${complete ? 'Done' : 'Not done yet'}">${complete ? '✓' : ''}</span>
               <a href="segment.html?id=${seg.id}">${partTitle(seg, esc)}</a>

@@ -21,8 +21,11 @@ Done: Session One published 2 October 2026. Loading sessions is in `docs/LOADING
 - [x] Load and publish Session One (6 segments: Welcome and worship, Creation and language, Discussion 1, Salvation, Discussion 2, Prayer and blessing)
 
 ## Phase 2: Personal notes
-- [ ] Notes per segment, with the prompt "What has struck you here?"
-- [ ] Voice notes: record in the browser, transcribe, edit, then save
+- [x] One private note per segment (visible only to its writer, not even admins), with the prompt
+      "What has struck you here?"; saves as you type; "Note" shown against the part on the home page
+- [ ] Voice notes: record in the browser, transcribe, edit, then save. Deferred (Tim, 2 Oct 2026): typed
+      notes first. When picked up, the options were a transcription service (e.g. Whisper via an Edge
+      Function, audio deleted after transcribing, privacy notice updated) or the browser's own dictation
 
 ## Phase 3: Community
 - [ ] Comments and suggestions per segment: private / my church / everyone, with an anonymous toggle

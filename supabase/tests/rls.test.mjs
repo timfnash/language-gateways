@@ -200,5 +200,26 @@ r = await as(ids.bob, `select count(*)::int n from public.segments`);
 const r3 = await as(ids.bob, `select count(*)::int n from storage.objects`);
 check('no profile, no content', r.rows[0].n === 0 && r3.rows[0].n === 0);
 
+// ---------------------------------------------------------------------------
+// Phase 2: notes
+// ---------------------------------------------------------------------------
+r = await as(ids.alice, `insert into public.notes (segment, body) values ('fid-1-1', 'Struck by Revelation 7') returning user_id`);
+check('member writes a note (user_id defaults to them)', r.rows[0]?.user_id === ids.alice);
+r = await as(ids.alice, `insert into public.notes (segment, body) values ('fid-1-1', 'Second') on conflict (user_id, segment) do update set body = excluded.body returning body`);
+check('one note per part: saving again updates it', r.rows[0]?.body === 'Second');
+r = await as(ids.tim, `select * from public.notes`);
+check('admins cannot read other people\'s notes', r.rows.length === 0);
+await db.exec(`insert into public.profiles (id, email, church, cohort) values ('${ids.bob}', 'bob@example.com', 'other-church', 'other-2026')`);
+r = await as(ids.bob, `select * from public.notes`);
+check('other members cannot read the note', r.rows.length === 0);
+await asErr('cannot write a note as someone else', ids.bob,
+  `insert into public.notes (user_id, segment, body) values ('${ids.alice}', 'fid-1-2', 'x')`, 'row-level security');
+r = await as(ids.bob, `update public.notes set body = 'hijack' returning segment`);
+check('cannot edit someone else\'s note', r.rows.length === 0);
+r = await as(ids.bob, `delete from public.notes returning segment`);
+check('cannot delete someone else\'s note', r.rows.length === 0);
+r = await as(ids.alice, `delete from public.notes where segment = 'fid-1-1' returning segment`);
+check('member deletes own note', r.rows.length === 1);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
