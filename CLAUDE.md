@@ -74,11 +74,13 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
 - Slides: use Tim's own JPEG export of each slide (2000 px wide, every build step included; Session One had 35
   visible slides). Rendering the PDF with PyMuPDF also works (the Egyptian hieroglyph shows as a missing-glyph box);
   Keynote's export of the .pptx substitutes fonts and breaks the layout, so don't use it.
+- Never change an existing segment's id (progress and notes hang off it); new segments get new ids, and
+  `position` sets the order. Session One's songs and series-outline parts are `fid-1-7` and `fid-1-8` for this reason.
 - The session video is edited: the table discussions are cut out, so segments can run end to end. Tim can paste
   YouTube's transcript (with times) to set the segment boundaries.
 - Content lives in `Sessions/<folder>/content/` in this repo (git-ignored: never commit it) (session.json + one Markdown file per segment + contributions/)
   and is loaded with `pipeline/load_session.py`; see `docs/LOADING-SESSIONS.md`. In a segment's Markdown,
-  `![caption](slide:N)` places the segment's Nth slide and `<!-- contributions -->` marks where the table
+  `![caption](slide:N)` places the segment's Nth slide, `![caption](youtube:ID)` embeds a video, and `<!-- contributions -->` marks where the table
   write-ups or prayers go.
 - The Session One Full Record Claude doc stores its slide images as artifact assets; they can be downloaded one at
   a time with the Artifact tool's read action and an asset id.

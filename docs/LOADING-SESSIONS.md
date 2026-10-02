@@ -31,8 +31,13 @@ Sessions/2026-09-29-freedom-church-jersey-S1/
     what-people-said.md  kept for the welcome page
 ```
 
-In a write-up, `![caption](slide:3)` shows that segment's third slide, and `<!-- contributions -->` marks
-where the table write-ups (or prayers) appear. Edit the Markdown files freely and reload.
+In a write-up, `![caption](slide:3)` shows that segment's third slide, `![caption](youtube:VIDEO-ID)` embeds a
+YouTube video (the ID is the part after `v=` in its link), and `<!-- contributions -->` marks where the table
+write-ups (or prayers) appear. Edit the Markdown files freely and reload.
+
+Segments can be split, added or reordered: change `session.json` (each segment's `position`, slides and video
+times) and reload. Keep existing segments' `id`s, because people's progress and notes are stored against them;
+give new segments new ids.
 
 ## Loading
 

@@ -155,7 +155,11 @@
       }
 
       function setupRead() {
-        const body = (full?.body ?? '').replace(/\]\(slide:(\d+)\)/g, (m, n) => `](${urls[seg.slides[n - 1]] ?? ''})`);
+        // ![caption](slide:N) shows this part's Nth slide; ![caption](youtube:ID) embeds a YouTube video.
+        const attr = t => t.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+        const body = (full?.body ?? '')
+          .replace(/!\[([^\]]*)\]\(youtube:([A-Za-z0-9_-]{6,20})\)/g, (m, caption, id) => `<div data-youtube="${id}" data-caption="${attr(caption)}"></div>`)
+          .replace(/\]\(slide:(\d+)\)/g, (m, n) => `](${urls[seg.slides[n - 1]] ?? ''})`);
         // Table write-ups and prayers go where the body marks <!-- contributions -->, or at the end.
         const [before, after = ''] = body.split('<!-- contributions -->');
         const group = (kind, heading) => {
@@ -165,6 +169,24 @@
             : '';
         };
         $('body').innerHTML = render(before) + group('table', 'At the tables') + group('prayers', 'Prayers from the tables') + render(after);
+        for (const el of $('body').querySelectorAll('[data-youtube]')) {
+          const figure = document.createElement('figure');
+          figure.className = 'embed';
+          const frame = document.createElement('iframe');
+          frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(el.dataset.youtube)}?rel=0`;
+          frame.title = el.dataset.caption || 'Video';
+          frame.loading = 'lazy';
+          frame.allow = 'accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen';
+          frame.allowFullscreen = true;
+          frame.referrerPolicy = 'strict-origin-when-cross-origin';
+          figure.append(frame);
+          if (el.dataset.caption) {
+            const caption = document.createElement('figcaption');
+            caption.textContent = el.dataset.caption;
+            figure.append(caption);
+          }
+          el.replaceWith(figure);
+        }
         // Reaching the end of the write-up counts as having read it.
         new IntersectionObserver((entries, obs) => {
           if (entries.some(e => e.isIntersecting)) { complete('read'); obs.disconnect(); }

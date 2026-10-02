@@ -210,6 +210,9 @@ footer a { color: var(--muted); }
 .segments li.done .tick { background: var(--brand); border-color: var(--brand); }
 
 .prose img { max-width: 100%; height: auto; display: block; margin: 18px 0; border-radius: 12px; box-shadow: var(--shadow); }
+.prose figure.embed { margin: 18px 0 24px; }
+.prose figure.embed iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 12px; background: #000; box-shadow: var(--shadow); }
+.prose figure.embed figcaption { margin-top: 8px; font-size: .85rem; color: var(--muted); }
 .prose blockquote { margin: 18px 0; padding: 0 18px; border-left: 3px solid var(--accent); color: var(--text); }
 .prose blockquote p { margin: 8px 0; }
 .prose table { border-collapse: collapse; width: 100%; font-size: .9rem; }
