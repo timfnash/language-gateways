@@ -28,9 +28,12 @@ Done: Session One published 2 October 2026. Loading sessions is in `docs/LOADING
       Function, audio deleted after transcribing, privacy notice updated) or the browser's own dictation
 
 ## Phase 3: Community
-- [ ] Comments and suggestions per segment: private / my church / everyone, with an anonymous toggle
-- [ ] Filter: show mine / my church's / all
-- [ ] Admin approval queue for cross-church visibility; admin page for invitations (single + paste CSV)
+Decided with Tim (2 Oct 2026): no separate comments; notes themselves are shared.
+- [x] Each note's visibility: all participants (default) / my church / my cohort / only me
+- [x] Shared notes always shown without name or church; only admins see the writer and their church
+- [x] Filter notes from: all participants (default) / my church / my cohort / only me
+- [x] "All participants" notes reach other churches only after admin approval; editing withdraws it
+- [x] Admin page: shared-notes approval queue; invitations (add one, paste CSV, see who has joined)
 
 ## Phase 4: Welcome page and outreach
 - [ ] Welcome page with rotating approved quotes ("what people have said") and the key practical takeaways

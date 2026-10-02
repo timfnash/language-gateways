@@ -15,6 +15,7 @@ header.innerHTML = `
         <li><a href="home.html" id="menu-home">Home</a></li>
         <li><a href="${FEEDBACK}">Feedback</a></li>
         <li data-signed-in hidden><a href="profile.html">Profile</a></li>
+        <li data-admin hidden><a href="admin.html">Admin</a></li>
         <li data-signed-in hidden><button type="button" id="menu-signout">Sign out</button></li>
         <li data-signed-out><a href="index.html">Sign in</a></li>
       </ul>
@@ -38,7 +39,10 @@ const { data } = configured ? await supabase.auth.getSession() : { data: {} };
 const signedIn = Boolean(data?.session);
 for (const li of header.querySelectorAll('[data-signed-in]')) li.hidden = !signedIn;
 for (const li of header.querySelectorAll('[data-signed-out]')) li.hidden = signedIn;
-if (!signedIn) {
+if (signedIn) {
+  const { data: isAdmin } = await supabase.rpc('is_admin');
+  for (const li of header.querySelectorAll('[data-admin]')) li.hidden = !isAdmin;
+} else {
   header.querySelector('#menu-home').href = 'index.html';
   header.querySelector('#logo-link').href = 'index.html';
 }

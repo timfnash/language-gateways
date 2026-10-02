@@ -44,7 +44,27 @@
       <h2>Your notes</h2>
       <label for="note">What has struck you here?</label>
       <textarea id="note" rows="6" maxlength="20000"></textarea>
-      <p class="meta" id="note-status">Only you can see your notes. They save as you type.</p>
+      <fieldset class="choices" id="share">
+        <legend>Who can see this note?</legend>
+        <label><input type="radio" name="share" value="everyone"> All participants</label>
+        <label><input type="radio" name="share" value="church"> My church</label>
+        <label><input type="radio" name="share" value="cohort"> My cohort</label>
+        <label><input type="radio" name="share" value="me"> Only me</label>
+      </fieldset>
+      <p class="meta" id="share-help"></p>
+      <p class="meta" id="note-status" aria-live="polite">Your note saves as you type.</p>
+    </section>
+
+    <section class="others ui" id="others" hidden>
+      <h2>Notes from participants</h2>
+      <fieldset class="choices compact" id="scope">
+        <legend>Show notes from</legend>
+        <label><input type="radio" name="scope" value="all"> All participants</label>
+        <label><input type="radio" name="scope" value="church"> My church</label>
+        <label><input type="radio" name="scope" value="cohort"> My cohort</label>
+        <label><input type="radio" name="scope" value="mine"> Only me</label>
+      </fieldset>
+      <ul class="note-list" id="note-list"></ul>
     </section>
 
     <nav class="pager ui" id="pager" aria-label="Segments"></nav>
@@ -219,27 +239,62 @@
         go(0);
       }
 
-      // Personal note: one per part, private, saved as you type.
+      // My note: one per part, saved as you type, shared as I choose (all participants by default).
+      // Shared notes are shown without names; notes for all participants reach other churches once approved.
       const note = $('note'), status = $('note-status');
-      const { data: saved } = await supabase.from('notes').select('body').eq('segment', seg.id).maybeSingle();
+      const SHARE_HELP = {
+        everyone: 'Everyone on the course can read this, without your name. Other churches see it once Tim has approved it.',
+        church: 'People from your church can read this, without your name.',
+        cohort: 'People in your cohort can read this, without your name.',
+        me: 'Only you can see this note.',
+      };
+      const shareInputs = [...document.querySelectorAll('input[name="share"]')];
+      const sharing = () => shareInputs.find(i => i.checked)?.value ?? 'everyone';
+      const { data: saved } = await supabase.from('notes').select('body, visibility').eq('segment', seg.id).maybeSingle();
       note.value = saved?.body ?? '';
+      const showShare = v => { shareInputs.forEach(i => { i.checked = i.value === v; }); $('share-help').textContent = SHARE_HELP[v]; };
+      showShare(saved?.visibility ?? 'everyone');
       $('notes').hidden = false;
-      let saveTimer = null, lastSaved = note.value;
+
+      let saveTimer = null, lastSaved = `${note.value}\u0000${sharing()}`;
       const saveNote = async () => {
         clearTimeout(saveTimer); saveTimer = null;
-        if (note.value === lastSaved) return;
-        const body = note.value;
+        const body = note.value, visibility = sharing(), key = `${body}\u0000${visibility}`;
+        if (key === lastSaved || (!saved && !body)) return;
         status.textContent = 'Saving…';
-        const { error } = await supabase.from('notes')
-          .upsert({ user_id: profile.id, segment: seg.id, body }, { onConflict: 'user_id,segment' });
+        const { error } = await supabase.rpc('save_note', { p_segment: seg.id, p_body: body, p_visibility: visibility });
         if (error) { status.textContent = 'Couldn’t save just now. Check your connection; your text is still here.'; console.error(error); return; }
-        lastSaved = body;
-        if (note.value === body) status.textContent = 'Saved. Only you can see your notes.';
+        lastSaved = key;
+        if (`${note.value}\u0000${sharing()}` === key) status.textContent = 'Saved.';
+        loadOthers();
       };
       note.addEventListener('input', () => { status.textContent = 'Editing…'; clearTimeout(saveTimer); saveTimer = setTimeout(saveNote, 800); });
       note.addEventListener('blur', saveNote);
+      shareInputs.forEach(i => i.addEventListener('change', () => { showShare(i.value); saveNote(); }));
       document.addEventListener('visibilitychange', () => { if (document.hidden) saveNote(); });
       window.addEventListener('pagehide', saveNote);
+
+      // Notes from participants, filtered by scope (all participants by default; remembered on this device).
+      const scopeInputs = [...document.querySelectorAll('input[name="scope"]')];
+      let scope = 'all';
+      try { scope = localStorage.getItem('fid-note-scope') || 'all'; } catch {}
+      scopeInputs.forEach(i => { i.checked = i.value === scope; });
+      const when = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      async function loadOthers() {
+        const { data, error } = await supabase.rpc('notes_for_segment', { p_segment: seg.id, p_scope: scope });
+        if (error) { console.error(error); return; }
+        $('note-list').innerHTML = data.length
+          ? data.map(n => `<li class="${n.mine ? 'mine' : ''}"><p>${DOMPurify.sanitize(n.body, { ALLOWED_TAGS: [] }).replace(/\n/g, '<br>')}</p>
+              <span class="meta">${n.mine ? 'Your note · ' : ''}${when(n.updated_at)}</span></li>`).join('')
+          : `<li class="empty meta">${scope === 'mine' ? 'You haven’t written a note on this part yet.' : 'No notes here yet. Yours could be the first.'}</li>`;
+        $('others').hidden = false;
+      }
+      scopeInputs.forEach(i => i.addEventListener('change', () => {
+        scope = i.value;
+        try { localStorage.setItem('fid-note-scope', scope); } catch {}
+        loadOthers();
+      }));
+      loadOthers();
 
       // Sidebar on wide screens: every part of this session, with ticks.
       const navItem = s => {
