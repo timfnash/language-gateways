@@ -19,7 +19,7 @@ export function showMessage(el, text, kind = 'error') {
 export function friendlyError(error) {
   const msg = error?.message || String(error || '');
   if (/invitation list|Database error saving new user/i.test(msg)) {
-    return 'This email address is not on the invitation list. Please use the address you were invited with, or contact Tim.';
+    return 'This email address is not on the invitation list. Please use the address you were invited with, or contact courses@languagegateways.com.';
   }
   if (/Invalid login credentials/i.test(msg)) return 'That email and password don’t match.';
   if (/Email not confirmed/i.test(msg)) return 'Please confirm your email address first: check your inbox for the link.';
