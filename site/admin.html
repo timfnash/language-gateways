@@ -92,8 +92,6 @@
           <select id="k-church" required></select>
           <label for="k-name">Name</label>
           <input id="k-name" required placeholder="e.g. Spring 2027">
-          <label for="k-start">Starts on <span class="hint">(optional)</span></label>
-          <input id="k-start" type="date">
           <label for="k-id">ID <span class="hint">(used in the invitations CSV)</span></label>
           <input id="k-id" required pattern="[a-z0-9-]+">
           <button type="submit">Add cohort</button>
@@ -169,7 +167,7 @@
       async function loadAll() {
         const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }] = await Promise.all([
           supabase.from('churches').select('id, name').order('name'),
-          supabase.from('cohorts').select('id, church, name, starts_on').order('starts_on', { ascending: false, nullsFirst: false }),
+          supabase.from('cohorts').select('id, church, name').order('created_at', { ascending: false }),
           supabase.from('invitations').select('*').order('created_at', { ascending: false }),
           supabase.from('profiles').select('email'),
         ]);
@@ -231,8 +229,8 @@
         $('groups').innerHTML = churches.map(ch => {
           const cs = cohorts.filter(c => c.church === ch.id);
           return `<section class="card group"><h2>${esc(ch.name)}</h2><p class="meta">ID: <code>${esc(ch.id)}</code></p>
-            ${cs.length ? `<div class="table-wrap"><table class="invites"><thead><tr><th>Cohort</th><th>ID</th><th>Starts</th><th>Invited</th><th>Joined</th></tr></thead><tbody>
-              ${cs.map(c => `<tr><td>${esc(c.name)}</td><td><code>${esc(c.id)}</code></td><td>${c.starts_on ? when(c.starts_on) : ''}</td>
+            ${cs.length ? `<div class="table-wrap"><table class="invites"><thead><tr><th>Cohort</th><th>ID</th><th>Invited</th><th>Joined</th></tr></thead><tbody>
+              ${cs.map(c => `<tr><td>${esc(c.name)}</td><td><code>${esc(c.id)}</code></td>
                 <td>${count({ key: 'cohort', id: c.id }, () => true)}</td><td>${count({ key: 'cohort', id: c.id }, i => joined.has(i.email))}</td></tr>`).join('')}
               </tbody></table></div>` : '<p class="meta">No cohorts yet.</p>'}
           </section>`;
@@ -248,11 +246,8 @@
       };
       const suggestChurch = suggest($('c-id'), () => slug($('c-name').value));
       $('c-name').addEventListener('input', suggestChurch);
-      const suggestCohort = suggest($('k-id'), () => {
-        const start = $('k-start').value;
-        return [$('k-church').value, start ? start.slice(0, 7) : slug($('k-name').value)].filter(Boolean).join('-');
-      });
-      ['k-church', 'k-name', 'k-start'].forEach(id => $(id).addEventListener('input', suggestCohort));
+      const suggestCohort = suggest($('k-id'), () => [$('k-church').value, slug($('k-name').value)].filter(Boolean).join('-'));
+      ['k-church', 'k-name'].forEach(id => $(id).addEventListener('input', suggestCohort));
       $('k-church').addEventListener('change', suggestCohort);
 
       $('add-church').addEventListener('submit', async e => {
@@ -270,7 +265,7 @@
 
       $('add-cohort').addEventListener('submit', async e => {
         e.preventDefault();
-        const row = { id: $('k-id').value.trim(), church: $('k-church').value, name: $('k-name').value.trim(), starts_on: $('k-start').value || null };
+        const row = { id: $('k-id').value.trim(), church: $('k-church').value, name: $('k-name').value.trim() };
         if (cohorts.some(c => c.church === row.church && c.name.toLowerCase() === row.name.toLowerCase()))
           return showMessage($('cohort-message'), `That church already has a cohort called ${row.name}.`);
         const { error } = await supabase.from('cohorts').insert(row);

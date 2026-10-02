@@ -177,6 +177,8 @@ footer a { color: var(--muted); }
 }
 .choices label:has(input:checked) { border-color: var(--brand); background: var(--ok-bg); color: var(--brand); font-weight: 600; }
 .choices input { accent-color: var(--brand); margin: 0; width: auto; }
+.choices input:focus { outline: none; }
+.choices label:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
 .choices label { white-space: nowrap; }
 .choices.compact label { padding: 6px 12px; font-size: .85rem; }
 .others { margin-top: 32px; }

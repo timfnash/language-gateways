@@ -9,7 +9,7 @@ Everything below is on the site's **Admin** page (menu → Admin), which only ad
 ## Churches and cohorts
 
 **Churches & cohorts** tab. Add a church, then a cohort (one run of the course) for it. The ID is
-suggested from the name (and the start date, for a cohort); it's what goes in the CSV's `cohort` column.
+suggested from the name; a cohort's ID is what goes in the CSV's `cohort` column.
 
 ## Inviting
 
