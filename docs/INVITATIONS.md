@@ -20,8 +20,8 @@ suggested from the name; a cohort's ID is what goes in the CSV's `cohort` column
   Only `email` and `cohort` are needed; the church comes from the cohort. Emails can be in any case.
   People already invited are skipped, and any row with an unknown cohort is listed so you can fix it.
 
-The list below shows everyone invited and whether they've joined. Filter it by church, cohort, or a
-name or email.
+The list below shows everyone invited; a tick means they've joined. Filter it by church, cohort,
+status (all invitees, joined, not yet joined), or a name or email.
 
 ## Removing someone
 
