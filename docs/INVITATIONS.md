@@ -1,7 +1,13 @@
 # Inviting people
 
-Only people with an invitation can create an account. When they sign up, their profile is filled in
-from their invitation, and they can correct it on first sign-in.
+People join in one of two ways:
+
+- **Invitation:** you add their email (one at a time or by CSV). They can sign up straight away, and their
+  profile is filled in from the invitation.
+- **Join link:** each cohort has a link the church can send to its own members, so the church doesn't have
+  to share anyone's details with us. People enter their own details and, if the cohort needs approval
+  (the default), wait until an admin or one of that church's church admins approves them. Until then
+  they see a "waiting for approval" message and no course content.
 
 Everything below is on the site's **Admin** page (menu → Admin), which only admins can open.
 **Never commit attendee lists to this repo** (it's public). If you keep a CSV, keep it in `Sessions/`.
@@ -10,6 +16,14 @@ Everything below is on the site's **Admin** page (menu → Admin), which only ad
 
 **Churches & cohorts** tab. Add a church, then a cohort (one run of the course) for it. The ID is
 suggested from the name; a cohort's ID is what goes in the CSV's `cohort` column.
+
+Each cohort has a **join link**: **Copy link** to send it to the church; **New link** replaces it (the old
+one stops working); untick **Needs approval** to let people from that link straight in.
+
+## Requests to join
+
+**Requests to join** tab: **Approve** lets them in and adds them to the invitations list; **Decline**
+deletes the account they created. Church admins see only their own church's requests.
 
 ## Inviting
 
@@ -33,8 +47,13 @@ The **trash icon** on their row in the invitations list:
 
 Admins can't be removed this way (their trash icon is greyed out): remove their admin rights first.
 
-## Admins
+## Admins and church admins
 
-Admins can approve shared notes, see who wrote them, and manage churches, cohorts, invitations and people.
-The **shield icon** on a row shows who's an admin (filled) and switches admin rights on or off. You can't
-remove your own admin rights; another admin has to do it.
+The **shield icon** on a row shows and changes someone's role. Each click moves to the next:
+**no admin rights** (outline) → **church admin** (purple) → **admin** (gold) → no admin rights.
+
+- **Admins** can do everything: approve shared notes and see who wrote them, and manage churches, cohorts,
+  join links, invitations, requests and people.
+- **Church admins** can approve or decline requests to join their church, and see its people (read-only).
+
+You can't change your own role; another admin has to do it. There's always at least one admin.

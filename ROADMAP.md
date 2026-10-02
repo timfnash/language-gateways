@@ -34,7 +34,9 @@ Decided with Tim (2 Oct 2026): no separate comments; notes themselves are shared
 - [x] Filter notes from: all participants (default) / my church / my cohort / only me
 - [x] "All participants" notes reach other churches only after admin approval; editing withdraws it
 - [x] Admin page: shared-notes approval queue; invitations (add one, paste CSV, see who has joined,
-      filter by church / cohort / search, remove people); add churches and cohorts
+      filter by church / cohort / status / search, remove people); add churches and cohorts
+- [x] Join links per cohort (churches needn't share members' details), with approval by admins or church admins;
+      roles cycle none → church admin → admin
 
 ## Phase 4: Welcome page and outreach
 - [ ] Welcome page with rotating approved quotes ("what people have said") and the key practical takeaways
