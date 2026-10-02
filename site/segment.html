@@ -40,6 +40,13 @@
       </figure>
     </section>
 
+    <section class="card notes ui" id="notes" hidden>
+      <h2>Your notes</h2>
+      <label for="note">What has struck you here?</label>
+      <textarea id="note" rows="6" maxlength="20000"></textarea>
+      <p class="meta" id="note-status">Only you can see your notes. They save as you type.</p>
+    </section>
+
     <nav class="pager ui" id="pager" aria-label="Segments"></nav>
     </article>
     <aside class="part-nav ui" id="part-nav" aria-label="This session"></aside>
@@ -65,11 +72,11 @@
         $('title').textContent = 'Not found';
         $('summary').innerHTML = 'This part of the course isn’t available. <a href="home.html">Back to the course</a>.';
       } else {
-        await show(segments, index, progress);
+        await show(segments, index, progress, profile);
       }
     }
 
-    async function show(segments, index, progress) {
+    async function show(segments, index, progress, profile) {
       const seg = segments[index];
       const session = seg.session;
       document.title = `${seg.part} ${seg.title} · Flourishing in Diversity`;
@@ -211,6 +218,28 @@
         });
         go(0);
       }
+
+      // Personal note: one per part, private, saved as you type.
+      const note = $('note'), status = $('note-status');
+      const { data: saved } = await supabase.from('notes').select('body').eq('segment', seg.id).maybeSingle();
+      note.value = saved?.body ?? '';
+      $('notes').hidden = false;
+      let saveTimer = null, lastSaved = note.value;
+      const saveNote = async () => {
+        clearTimeout(saveTimer); saveTimer = null;
+        if (note.value === lastSaved) return;
+        const body = note.value;
+        status.textContent = 'Saving…';
+        const { error } = await supabase.from('notes')
+          .upsert({ user_id: profile.id, segment: seg.id, body }, { onConflict: 'user_id,segment' });
+        if (error) { status.textContent = 'Couldn’t save just now. Check your connection; your text is still here.'; console.error(error); return; }
+        lastSaved = body;
+        if (note.value === body) status.textContent = 'Saved. Only you can see your notes.';
+      };
+      note.addEventListener('input', () => { status.textContent = 'Editing…'; clearTimeout(saveTimer); saveTimer = setTimeout(saveNote, 800); });
+      note.addEventListener('blur', saveNote);
+      document.addEventListener('visibilitychange', () => { if (document.hidden) saveNote(); });
+      window.addEventListener('pagehide', saveNote);
 
       // Sidebar on wide screens: every part of this session, with ticks.
       const navItem = s => {

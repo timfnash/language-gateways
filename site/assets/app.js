@@ -60,20 +60,23 @@ export async function nextPage(userId) {
 export const MODES = { read: 'Read', watch: 'Watch', slides: 'Slides' };
 
 // All sessions the person can see, each with its segments in order, plus their progress.
+// notes is the set of segment ids the person has written a note on.
 // progress is keyed by segment id: { read: {started_at, completed_at, updated_at}, watch: …, … }
 export async function loadCourse() {
-  const [{ data: sessions, error }, { data: rows }] = await Promise.all([
+  const [{ data: sessions, error }, { data: rows }, { data: noteRows }] = await Promise.all([
     supabase.from('sessions')
       .select('id, number, title, summary, youtube_id, published_at, segments (id, position, title, summary, slides, youtube_start, youtube_end)')
       .order('number'),
     supabase.from('progress').select('segment, mode, started_at, completed_at, updated_at'),
+    supabase.from('notes').select('segment').neq('body', ''),
   ]);
   if (error) throw error;
   for (const s of sessions) s.segments.sort((a, b) => a.position - b.position);
   const progress = {};
   for (const r of rows ?? []) (progress[r.segment] ??= {})[r.mode] = r;
   for (const s of sessions) s.segments.forEach((g, i) => { g.part = `${i + 1}/${s.segments.length}`; });
-  return { sessions, progress, segments: sessions.flatMap(s => s.segments.map(g => ({ ...g, session: s }))) };
+  const notes = new Set((noteRows ?? []).map(n => n.segment));
+  return { sessions, progress, notes, segments: sessions.flatMap(s => s.segments.map(g => ({ ...g, session: s }))) };
 }
 
 export const isComplete = modes => Object.values(modes ?? {}).some(m => m.completed_at);
