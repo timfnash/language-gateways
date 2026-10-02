@@ -15,7 +15,7 @@
 - [ ] Stop all recorders at the blessing
 
 ## After
-1. Make a folder `~/Sessions/<YYYY-MM-DD>-<church>-S<n>/` with:
+1. Make a folder `Sessions/<YYYY-MM-DD>-<church>-S<n>/` in this project (git ignores `Sessions/`) with:
    - `tables/T1/`, `tables/T2/`, … (each recorder's files). Alternatively, put all the files straight into
      `tables/` and list in `notes.txt` which recorder was on which table
    - `front/` (front audio, videos, any transcript)
@@ -23,7 +23,7 @@
      File → Download → JPEG for each slide (or PowerPoint → Export → JPEG), then rename. Also keep the .pptx for the song links
    - `notes.txt` (the section times you noted)
 2. Upload the video to YouTube (unlisted) and add its link to `notes.txt`
-3. In a new Claude Code session in this project: **"Process session ~/Sessions/<folder> following SESSION-CHECKLIST.md"**
+3. In a new Claude Code session in this project: **"Process session Sessions/<folder> following SESSION-CHECKLIST.md"**
    - transcribe the tables and front audio
    - remove hallucinated repetition
    - tidy the front talk, place the slides and add the song links

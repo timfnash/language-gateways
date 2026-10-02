@@ -5,6 +5,8 @@
 *.mp4
 *.mp3
 sessions-private/
+# Session content (write-ups, table discussions, slides) is gated: it lives here but is never committed
+/Sessions/
 .env
 .venv/
 node_modules/
