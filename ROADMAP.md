@@ -11,14 +11,14 @@ Done. Account setup steps are in `docs/SETUP.md`.
 - [x] Bulk invitations through Supabase CSV import (documented for Tim)
 
 ## Phase 1: Session One online
-Built and tested; loading and publishing Session One is in `docs/LOADING-SESSIONS.md`.
+Done: Session One published 2 October 2026. Loading sessions is in `docs/LOADING-SESSIONS.md`.
 
 - [x] Tables: `sessions`, `segments` (text, slides, youtube_start/end), with content in Supabase and not the repo
 - [x] Segment views: **Read** (write-up plus slides), **Watch** (YouTube embed limited to the segment), **Slides** (carousel)
 - [x] `progress` table: user × segment × mode (read / watch / slides / listen), with timestamps
 - [x] Dashboard: "continue where you left off" and completion ticks
 - [x] Table write-ups and prayers stored per cohort (`contributions`), so other churches don't see them unless shared
-- [ ] Load and publish Session One (6 segments: Welcome and worship, Creation and language, Discussion 1, Salvation, Discussion 2, Prayer and blessing)
+- [x] Load and publish Session One (6 segments: Welcome and worship, Creation and language, Discussion 1, Salvation, Discussion 2, Prayer and blessing)
 
 ## Phase 2: Personal notes
 - [ ] Notes per segment, with the prompt "What has struck you here?"

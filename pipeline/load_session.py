@@ -1,8 +1,8 @@
 """Load a session's content folder into Supabase.
 
-    python3 pipeline/load_session.py ~/Sessions/<folder> --check     # validate only, no network
-    python3 pipeline/load_session.py ~/Sessions/<folder>             # load as a draft (admins only)
-    python3 pipeline/load_session.py ~/Sessions/<folder> --publish   # load and publish to members
+    python3 pipeline/load_session.py Sessions/<folder> --check     # validate only, no network
+    python3 pipeline/load_session.py Sessions/<folder>             # load (a new session stays a draft for admins)
+    python3 pipeline/load_session.py Sessions/<folder> --publish   # load and publish to members
 
 The folder holds slides/ (slide-01.jpg …) and content/ with session.json, one Markdown file per
 segment and contributions/*.md (table write-ups and prayers, which belong to the cohort in
@@ -129,7 +129,11 @@ def main():
     if rows:
         db.request('POST', '/rest/v1/contributions', rows, {'Prefer': 'return=minimal'})
 
-    state = 'published' if args.publish else 'loaded as a draft (only admins can see it; re-run with --publish)'
+    if args.publish:
+        state = 'published'
+    else:
+        published = db.request('GET', f"/rest/v1/sessions?id=eq.{session['id']}&select=published_at")[0]['published_at']
+        state = 'updated (still published)' if published else 'loaded as a draft (only admins can see it; re-run with --publish)'
     print(f"Session {session['number']} {state}: {len(manifest['segments'])} segments, "
           f"{len(slides)} slides, {len(rows)} contributions.")
 

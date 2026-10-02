@@ -73,7 +73,7 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   Keynote's export of the .pptx substitutes fonts and breaks the layout, so don't use it.
 - The session video is edited: the table discussions are cut out, so segments can run end to end. Tim can paste
   YouTube's transcript (with times) to set the segment boundaries.
-- Content lives in `~/Sessions/<folder>/content/` (session.json + one Markdown file per segment + contributions/)
+- Content lives in `Sessions/<folder>/content/` in this repo (git-ignored: never commit it) (session.json + one Markdown file per segment + contributions/)
   and is loaded with `pipeline/load_session.py`; see `docs/LOADING-SESSIONS.md`. In a segment's Markdown,
   `![caption](slide:N)` places the segment's Nth slide and `<!-- contributions -->` marks where the table
   write-ups or prayers go.

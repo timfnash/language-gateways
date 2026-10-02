@@ -1,7 +1,8 @@
 # Loading a session onto the site
 
-Session content never goes in this repo. It lives in a folder on your Mac and is loaded into Supabase,
-where only invited people can see it.
+Session content is never committed to this repo. It lives in the `Sessions/` folder inside the project,
+which git ignores, and is loaded into Supabase, where only invited people can see it.
+That folder isn't backed up by GitHub, so make sure your Mac's own backup covers it.
 
 ## One-off setup
 
@@ -21,7 +22,7 @@ where only invited people can see it.
 ## The session folder
 
 ```
-~/Sessions/2026-09-29-freedom-church-jersey-S1/
+Sessions/2026-09-29-freedom-church-jersey-S1/
   slides/        slide-01.jpg, slide-02.jpg, … (every visible slide, in order)
   content/
     session.json         the session, its segments, video times and which slides each uses
@@ -38,19 +39,20 @@ where the table write-ups (or prayers) appear. Edit the Markdown files freely an
 Check the folder first (nothing is sent anywhere):
 
 ```bash
-python3 pipeline/load_session.py ~/Sessions/2026-09-29-freedom-church-jersey-S1 --check
+python3 pipeline/load_session.py Sessions/2026-09-29-freedom-church-jersey-S1 --check
 ```
 
-Load it as a **draft**. Only admins can see it, so you can check it on the site first:
+Load it. A new session starts as a **draft** that only admins can see, so you can check it on the site first;
+reloading a session that's already published keeps it published:
 
 ```bash
-python3 pipeline/load_session.py ~/Sessions/2026-09-29-freedom-church-jersey-S1
+python3 pipeline/load_session.py Sessions/2026-09-29-freedom-church-jersey-S1
 ```
 
 When you're happy, **publish** it to members:
 
 ```bash
-python3 pipeline/load_session.py ~/Sessions/2026-09-29-freedom-church-jersey-S1 --publish
+python3 pipeline/load_session.py Sessions/2026-09-29-freedom-church-jersey-S1 --publish
 ```
 
 Reloading is safe: it updates the segments, replaces that cohort's table write-ups, and overwrites the slides.
