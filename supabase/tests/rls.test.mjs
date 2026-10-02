@@ -18,7 +18,8 @@ await db.exec(`
   alter table storage.objects enable row level security;
   grant usage on schema storage to anon, authenticated;
   grant all on storage.objects to anon, authenticated;
-  create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb);
+  create table auth.users (id uuid primary key default gen_random_uuid(), email text, raw_user_meta_data jsonb,
+    email_confirmed_at timestamptz);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   grant usage on schema public, auth to anon, authenticated;
@@ -29,6 +30,7 @@ await db.exec(`
 const migrations = readdirSync(`${repo}/migrations`).sort();
 const LATER = '20261003';
 const JOIN_LINKS = '20261006';
+const CONFIRMATION = '20261007';
 for (const file of migrations.filter(f => f < LATER)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
@@ -354,7 +356,7 @@ check('state restored for later tests', r.rows[0]?.a === true);
 // ---------------------------------------------------------------------------
 // Join links, approvals and church admins
 // ---------------------------------------------------------------------------
-for (const file of migrations.filter(f => f >= JOIN_LINKS)) {
+for (const file of migrations.filter(f => f >= JOIN_LINKS && f < CONFIRMATION)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
 const code = (await db.query(`select join_code from public.cohorts where id = 'freedom-church-jersey-2026-09'`)).rows[0].join_code;
@@ -447,6 +449,23 @@ await asErr('church admin needs a church', ids.tim, `select public.admin_set_rol
 await as(ids.tim, `select public.admin_set_role('alice@example.com', 'church')`);
 await as(ids.tim, `select public.admin_remove_person('alice@example.com')`);
 check('removing a person clears their church admin role', (await db.query(`select 1 from public.church_admins`)).rows.length === 0);
+
+// ---------------------------------------------------------------------------
+// Email confirmation status on the admin page
+// ---------------------------------------------------------------------------
+for (const file of migrations.filter(f => f >= CONFIRMATION)) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
+await db.exec(`update auth.users set email_confirmed_at = now() where email not in ('pat@example.com')`);
+await join('pat', code);
+r = await as(ids.tim, `select email, email_confirmed from public.admin_join_requests()`);
+check('join requests show unconfirmed addresses', r.rows.find(x => x.email === 'pat@example.com')?.email_confirmed === false);
+r = await as(ids.tim, `select * from public.admin_unconfirmed_emails() as email`);
+check('admins can list unconfirmed accounts', r.rows.map(x => x.email).join() === 'pat@example.com');
+await db.exec(`update auth.users set email_confirmed_at = now() where email = 'pat@example.com'`);
+r = await as(ids.tim, `select email, email_confirmed from public.admin_join_requests()`);
+check('…and confirmed ones once they confirm', r.rows.find(x => x.email === 'pat@example.com')?.email_confirmed === true);
+await asErr('members cannot list unconfirmed accounts', ids.jo, `select * from public.admin_unconfirmed_emails()`, 'Admins only');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

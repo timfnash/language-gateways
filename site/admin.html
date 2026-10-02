@@ -156,6 +156,7 @@
         $('requests').innerHTML = data.length ? data.map(r => `
           <li class="waiting">
             <p><strong>${esc([r.given_name, r.family_name].filter(Boolean).join(' ') || r.email)}</strong> &lt;${esc(r.email)}&gt;</p>
+            ${r.email_confirmed ? '' : '<p class="badge-line"><span class="badge unconfirmed">Email not confirmed yet</span> They may have mistyped their address, or not opened the email yet.</p>'}
             <p class="meta">${esc(cohortName(r.cohort))} · asked ${when(r.created_at)}${r.mother_tongue || r.other_languages
               ? ` · ${esc([r.mother_tongue, r.other_languages].filter(Boolean).join('; '))}` : ''}</p>
             <button type="button" data-approve="${r.id}">Approve</button>
@@ -208,23 +209,26 @@
       if (isAdmin) loadNotes();
 
       // ---- Invitations, churches and cohorts -----------------------------------
-      let churches = [], cohorts = [], invites = [], joined = new Set(), roles = new Map();
+      let churches = [], cohorts = [], invites = [], joined = new Set(), unconfirmed = new Set(), roles = new Map();
       const cohortName = id => { const c = cohorts.find(c => c.id === id); return c ? cohortLabel(c) : id; };
       const cohortLabel = c => `${churches.find(ch => ch.id === c.church)?.name ?? c.church} · ${c.name}`;
       const options = (items, label, all) => (all ? `<option value="">${all}</option>` : '') +
         items.map(i => `<option value="${esc(i.id)}">${esc(label(i))}</option>`).join('');
 
       async function loadAll() {
-        const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: roleList }] = await Promise.all([
+        const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: roleList }, { data: unconf }] = await Promise.all([
           supabase.from('churches').select('id, name').order('name'),
           supabase.from('cohorts').select('id, church, name, join_code, join_requires_approval').order('created_at', { ascending: false }),
           supabase.from('invitations').select('*').order('created_at', { ascending: false }),
           supabase.from('profiles').select('email').eq('status', 'active'),
           isAdmin ? supabase.rpc('admin_list_roles') : Promise.resolve({ data: [] }),
+          supabase.rpc('admin_unconfirmed_emails'),
         ]);
+        // "Joined" means an active account with a confirmed email address.
+        unconfirmed = new Set((unconf ?? []).map(u => typeof u === 'string' ? u : u.admin_unconfirmed_emails ?? u.email));
         roles = new Map((roleList ?? []).map(r => [r.email, r.role]));
         churches = ch ?? []; cohorts = cs ?? []; invites = inv ?? [];
-        joined = new Set((profiles ?? []).map(p => p.email));
+        joined = new Set((profiles ?? []).map(p => p.email).filter(e => !unconfirmed.has(e)));
 
         const keep = (el, html) => { const v = el.value; el.innerHTML = html; if ([...el.options].some(o => o.value === v)) el.value = v; };
         keep($('i-cohort'), options(cohorts, cohortLabel));
@@ -254,6 +258,7 @@
         const ICON = {
           trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>',
           check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+          mail: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>',
           shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
         };
         const me = profile.email;
@@ -263,7 +268,9 @@
           (shown.length ? shown.map(i => {
             const r = roles.get(i.email) ?? 'none', isMe = i.email === me, joinedIcon = joined.has(i.email)
               ? `<span class="icon joined" title="Joined" aria-label="Joined" role="img">${ICON.check}</span>`
-              : '<span class="icon" title="Not joined yet" aria-label="Not joined yet" role="img"></span>';
+              : unconfirmed.has(i.email)
+                ? `<span class="icon unconfirmed" title="Signed up, but hasn’t confirmed their email address yet" aria-label="Signed up, email not confirmed yet" role="img">${ICON.mail}</span>`
+                : '<span class="icon" title="Not joined yet" aria-label="Not joined yet" role="img"></span>';
             if (!isAdmin) return `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
               <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
               <td class="actions">${joinedIcon}</td></tr>`;
@@ -273,7 +280,7 @@
             return `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
               <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
               <td class="actions">${joinedIcon}<button type="button" class="icon-btn role-toggle" data-email="${esc(i.email)}" data-role="${r}"
-                    aria-pressed="${r !== 'none'}" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}"${isMe ? ' disabled' : ''}>${ICON.shield}</button><button type="button" class="icon-btn danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email)}"
+                    aria-pressed="${r !== 'none'}" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}"${isMe ? ' disabled' : ''}>${ICON.shield}</button><button type="button" class="icon-btn danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email) || unconfirmed.has(i.email)}"
                     title="${esc(removeTitle)}" aria-label="${esc(removeTitle)}"${r === 'admin' ? ' disabled' : ''}>${ICON.trash}</button></td></tr>`;
           }).join('')
           : `<tr><td colspan="5" class="meta">Nobody matches.</td></tr>`) + '</tbody>';

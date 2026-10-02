@@ -286,6 +286,9 @@ button.link.danger { color: var(--error-text); font-size: .85rem; }
 .role-toggle:disabled { opacity: 1; cursor: default; }
 .requests li button { margin: 10px 8px 0 0; padding: 9px 16px; font-size: .72rem; }
 .requests li p { margin: 0 0 4px; }
+.badge.unconfirmed { background: var(--error-bg); color: var(--error-text); }
+.badge-line { font-size: .85rem; color: var(--muted); }
+.icon.unconfirmed { color: var(--muted); }
 .join-link { white-space: nowrap; }
 .join-link button.link { font-size: .85rem; }
 .join-link .approval { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-weight: 400; font-size: .8rem; letter-spacing: 0; text-transform: none; }
