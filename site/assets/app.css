@@ -125,6 +125,8 @@ footer {
 }
 
 /* Course pages */
+.part { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .15em; }
+h1 .part { font-weight: normal; }
 .continue { display: block; text-decoration: none; color: var(--text); border-left: 4px solid var(--accent); }
 .continue strong { display: block; font-size: 1.2rem; margin: 4px 0; }
 .continue .meta { display: block; }
