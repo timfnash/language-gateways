@@ -267,6 +267,20 @@ label.consent input { width: auto; margin-top: 4px; accent-color: var(--brand); 
 .pending { border-left: 6px solid var(--accent); }
 .pending h2 { margin-top: 0; }
 
+/* In-page confirmation dialog */
+dialog.ask {
+  width: min(32rem, calc(100vw - 32px)); padding: 24px; border: none; border-radius: 18px;
+  background: var(--surface); color: var(--text); box-shadow: 0 12px 48px rgba(33, 16, 38, .25);
+}
+dialog.ask::backdrop { background: rgba(33, 16, 38, .45); }
+dialog.ask h2 { margin: 0 0 10px; font-size: 1.05rem; text-transform: none; letter-spacing: 0; }
+dialog.ask p { margin: 0 0 8px; white-space: pre-line; }
+dialog.ask input { margin-top: 8px; }
+.ask-buttons { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.ask-buttons button { margin-top: 16px; }
+button.danger { background: var(--error-text); border-color: var(--error-text); }
+button.danger:hover { background: #6d150e; border-color: #6d150e; }
+
 /* Admin page */
 .filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 12px; }
 .filters label { margin: 0; flex: 1 1 12rem; }
