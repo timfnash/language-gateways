@@ -259,6 +259,13 @@ footer a { color: var(--muted); }
 }
 
 /* Admin page */
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 12px; }
+.filters label { margin: 0; flex: 1 1 12rem; }
+.filters select, .filters input { margin-top: 6px; }
+button.link.danger { color: var(--error-text); font-size: .85rem; }
+.group h2 { margin: 0; }
+.group .table-wrap { margin-top: 12px; box-shadow: none; }
+#groups { margin-bottom: 8px; }
 .admin-grid { display: grid; gap: 24px; }
 .admin-grid .card { margin: 0; }
 .admin-grid h2 { margin-top: 0; }

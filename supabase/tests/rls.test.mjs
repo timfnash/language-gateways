@@ -299,5 +299,32 @@ try { await db.query(`select * from public.notes_for_segment('fid-1-1')`); check
 catch (e) { check('signed-out visitors cannot read notes', e.message.includes('permission denied'), e.message); }
 finally { await db.exec(`reset role;`); }
 
+// ---------------------------------------------------------------------------
+// Admin: removing people
+// ---------------------------------------------------------------------------
+await as(ids.carol, `select public.record_progress('fid-1-1', 'read', true)`);
+await asErr('members cannot remove people', ids.alice, `select public.admin_remove_person('carol@example.com')`, 'Admins only');
+await asErr('admins cannot be removed this way', ids.tim, `select public.admin_remove_person('TIM@zipf.me')`, 'is an admin');
+r = await as(ids.tim, `select public.admin_remove_person('  Carol@Example.com ') as removed`);
+check('removing a member deletes their account', r.rows[0]?.removed === 'account');
+const left = (await db.query(`select
+  (select count(*)::int from auth.users where id = $1) users,
+  (select count(*)::int from public.profiles where id = $1) profiles,
+  (select count(*)::int from public.notes where user_id = $1) notes,
+  (select count(*)::int from public.progress where user_id = $1) progress,
+  (select count(*)::int from public.invitations where email = 'carol@example.com') invitations`, [ids.carol])).rows[0];
+check('…and their profile, notes, progress and invitation', Object.values(left).every(n => n === 0), JSON.stringify(left));
+check('their shared note no longer shows', !bodies(await sees('alice')).includes('Carol'));
+await db.exec(`insert into public.invitations (email, church, cohort) values ('pending@example.com', 'other-church', 'other-2026')`);
+r = await as(ids.tim, `select public.admin_remove_person('pending@example.com') as removed`);
+check('removing someone who never joined deletes the invitation', r.rows[0]?.removed === 'invitation');
+r = await as(ids.tim, `select public.admin_remove_person('nobody@example.com') as removed`);
+check('removing an unknown email changes nothing', r.rows[0]?.removed === 'none');
+r = await as(ids.tim, `insert into public.churches (id, name) values ('new-church', 'New Church') returning id`);
+check('admins add churches', r.rows.length === 1);
+r = await as(ids.tim, `insert into public.cohorts (id, church, name, starts_on) values ('new-church-2027-01', 'new-church', 'Spring 2027', '2027-01-10') returning id`);
+check('admins add cohorts', r.rows.length === 1);
+await asErr('members cannot add churches', ids.alice, `insert into public.churches (id, name) values ('x', 'X')`, 'row-level security');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
