@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · Flourishing in Diversity</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <p class="kicker">Admin</p>
+    <h1>Course admin</h1>
+
+    <div class="tabs ui" role="tablist">
+      <button role="tab" id="tab-notes" aria-selected="true" aria-controls="panel-notes">Shared notes</button>
+      <button role="tab" id="tab-invites" aria-selected="false" aria-controls="panel-invites">Invitations</button>
+    </div>
+
+    <section id="panel-notes" role="tabpanel" class="ui">
+      <p class="lead">Notes are shown to participants without names. Only admins see who wrote them.
+        Notes for <strong>all participants</strong> reach other churches once you approve them.</p>
+      <fieldset class="choices compact" id="note-filter">
+        <legend>Show</legend>
+        <label><input type="radio" name="note-filter" value="waiting" checked> Awaiting approval</label>
+        <label><input type="radio" name="note-filter" value="all"> All shared notes</label>
+      </fieldset>
+      <ul class="note-list admin-notes" id="admin-notes"></ul>
+    </section>
+
+    <section id="panel-invites" role="tabpanel" class="ui" hidden>
+      <div class="admin-grid">
+        <form class="card" id="invite-one">
+          <h2>Invite one person</h2>
+          <label for="i-email">Email</label>
+          <input id="i-email" type="email" required>
+          <label for="i-cohort">Cohort</label>
+          <select id="i-cohort" required></select>
+          <label for="i-given">Given name <span class="hint">(optional)</span></label>
+          <input id="i-given">
+          <label for="i-family">Family name <span class="hint">(optional)</span></label>
+          <input id="i-family">
+          <label for="i-mother">Mother tongue <span class="hint">(optional)</span></label>
+          <input id="i-mother">
+          <label for="i-other">Other languages <span class="hint">(optional, separate with commas)</span></label>
+          <input id="i-other">
+          <button type="submit">Add invitation</button>
+          <p class="message" id="one-message" hidden></p>
+        </form>
+
+        <form class="card" id="invite-csv">
+          <h2>Paste a CSV</h2>
+          <p class="meta">First row: <code>email,cohort,given_name,family_name,mother_tongue,other_languages</code>.
+            Only email and cohort are needed; the church comes from the cohort. Use the cohort ID, e.g.
+            <code id="cohort-example">freedom-church-jersey-2026-09</code>.</p>
+          <label for="csv">CSV</label>
+          <textarea id="csv" rows="8" spellcheck="false"></textarea>
+          <button type="submit">Add invitations</button>
+          <p class="message" id="csv-message" hidden></p>
+        </form>
+      </div>
+
+      <h2>Invited</h2>
+      <p class="meta" id="invite-count"></p>
+      <div class="table-wrap"><table class="invites" id="invites"></table></div>
+    </section>
+  </main>
+
+  <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
+
+  <script type="module">
+    import { supabase, requireSignedIn, showMessage, pageUrl } from './assets/app.js';
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    const when = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    const { profile } = await requireSignedIn();
+    const { data: isAdmin } = profile ? await supabase.rpc('is_admin') : { data: false };
+    if (!isAdmin) location.replace(pageUrl('home.html'));
+    else start();
+
+    function start() {
+      // Tabs
+      const tabs = { notes: $('tab-notes'), invites: $('tab-invites') };
+      for (const [name, tab] of Object.entries(tabs)) tab.addEventListener('click', () => {
+        for (const [n, t] of Object.entries(tabs)) {
+          t.setAttribute('aria-selected', String(n === name));
+          $(`panel-${n}`).hidden = n !== name;
+        }
+      });
+      if (location.hash === '#invitations') tabs.invites.click();
+
+      // ---- Shared notes --------------------------------------------------------
+      const LABEL = { everyone: 'All participants', church: 'Their church', cohort: 'Their cohort' };
+      let filter = 'waiting';
+      document.querySelectorAll('input[name="note-filter"]').forEach(i => i.addEventListener('change', () => { filter = i.value; loadNotes(); }));
+
+      async function loadNotes() {
+        const { data, error } = await supabase.rpc('admin_shared_notes');
+        if (error) { $('admin-notes').innerHTML = `<li class="empty">${esc(error.message)}</li>`; return; }
+        const waiting = n => n.visibility === 'everyone' && !n.approved_at;
+        const rows = filter === 'waiting' ? data.filter(waiting) : data;
+        tabs.notes.textContent = `Shared notes (${data.filter(waiting).length} waiting)`;
+        $('admin-notes').innerHTML = rows.length ? rows.map(n => `
+          <li class="${waiting(n) ? 'waiting' : ''}">
+            <p class="meta"><strong>${esc(n.segment_title)}</strong> · ${LABEL[n.visibility]}${n.visibility === 'everyone' ? (n.approved_at ? ' · approved' : ' · <strong>awaiting approval</strong>') : ''}</p>
+            <p>${esc(n.body).replace(/\n/g, '<br>')}</p>
+            <p class="meta">${esc(n.author || 'No name')} &lt;${esc(n.email)}&gt; · ${esc(n.church)}, ${esc(n.cohort)} · ${when(n.updated_at)}</p>
+            ${n.visibility === 'everyone' ? `<button type="button" class="${n.approved_at ? 'secondary' : ''}" data-id="${n.id}" data-approve="${!n.approved_at}">
+              ${n.approved_at ? 'Withdraw approval' : 'Approve for all churches'}</button>` : ''}
+          </li>`).join('')
+          : `<li class="empty meta">${filter === 'waiting' ? 'Nothing waiting for approval.' : 'No shared notes yet.'}</li>`;
+      }
+      $('admin-notes').addEventListener('click', async e => {
+        const b = e.target.closest('button[data-id]');
+        if (!b) return;
+        b.disabled = true;
+        const { error } = await supabase.rpc('set_note_approval', { p_id: b.dataset.id, p_approved: b.dataset.approve === 'true' });
+        if (error) { alert(error.message); b.disabled = false; return; }
+        loadNotes();
+      });
+      loadNotes();
+
+      // ---- Invitations ---------------------------------------------------------
+      let cohorts = [];
+      async function loadInvites() {
+        const [{ data: invites }, { data: profiles }, { data: cs }] = await Promise.all([
+          supabase.from('invitations').select('*').order('created_at', { ascending: false }),
+          supabase.from('profiles').select('email'),
+          supabase.from('cohorts').select('id, church, name, churches (name)').order('starts_on', { ascending: false }),
+        ]);
+        cohorts = cs ?? [];
+        $('i-cohort').innerHTML = cohorts.map(c => `<option value="${esc(c.id)}">${esc(c.churches?.name)}: ${esc(c.name)}</option>`).join('');
+        if (cohorts[0]) $('cohort-example').textContent = cohorts[0].id;
+        const joined = new Set((profiles ?? []).map(p => p.email));
+        const cohortName = id => { const c = cohorts.find(c => c.id === id); return c ? `${c.churches?.name}: ${c.name}` : id; };
+        $('invite-count').textContent = `${invites.length} invited, ${invites.filter(i => joined.has(i.email)).length} joined.`;
+        $('invites').innerHTML = `<thead><tr><th>Email</th><th>Name</th><th>Cohort</th><th>Languages</th><th>Joined</th></tr></thead><tbody>` +
+          invites.map(i => `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
+            <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
+            <td>${joined.has(i.email) ? '✓' : ''}</td></tr>`).join('') + '</tbody>';
+      }
+
+      const invitation = (row) => {
+        const c = cohorts.find(c => c.id === row.cohort?.trim());
+        if (!row.email?.trim()) return { error: 'missing email' };
+        if (!c) return { error: `unknown cohort "${row.cohort ?? ''}"` };
+        const clean = v => (v ?? '').trim() || null;
+        return { row: { email: row.email.trim().toLowerCase(), church: c.church, cohort: c.id,
+          given_name: clean(row.given_name), family_name: clean(row.family_name),
+          mother_tongue: clean(row.mother_tongue), other_languages: clean(row.other_languages) } };
+      };
+
+      $('invite-one').addEventListener('submit', async e => {
+        e.preventDefault();
+        const { row, error } = invitation({ email: $('i-email').value, cohort: $('i-cohort').value, given_name: $('i-given').value,
+          family_name: $('i-family').value, mother_tongue: $('i-mother').value, other_languages: $('i-other').value });
+        if (error) return showMessage($('one-message'), error);
+        const { error: err } = await supabase.from('invitations').insert(row);
+        if (err) return showMessage($('one-message'), err.code === '23505' ? `${row.email} is already invited.` : err.message);
+        showMessage($('one-message'), `Invited ${row.email}.`, 'ok');
+        e.target.reset();
+        loadInvites();
+      });
+
+      // Small CSV parser: commas, quoted fields ("a, b"), doubled quotes inside quotes.
+      function parseCsv(text) {
+        const rows = []; let row = [], field = '', quoted = false;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          if (quoted) {
+            if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+            else if (ch === '"') quoted = false;
+            else field += ch;
+          } else if (ch === '"') quoted = true;
+          else if (ch === ',') { row.push(field); field = ''; }
+          else if (ch === '\n' || ch === '\r') {
+            if (ch === '\r' && text[i + 1] === '\n') i++;
+            row.push(field); field = '';
+            if (row.some(f => f.trim())) rows.push(row);
+            row = [];
+          } else field += ch;
+        }
+        row.push(field);
+        if (row.some(f => f.trim())) rows.push(row);
+        return rows;
+      }
+
+      $('invite-csv').addEventListener('submit', async e => {
+        e.preventDefault();
+        const [head, ...lines] = parseCsv($('csv').value);
+        if (!head) return showMessage($('csv-message'), 'Paste the CSV first, starting with its heading row.');
+        const keys = head.map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+        if (!keys.includes('email') || !keys.includes('cohort')) return showMessage($('csv-message'), 'The first row needs at least "email" and "cohort".');
+        const good = [], problems = [];
+        lines.forEach((cells, n) => {
+          const { row, error } = invitation(Object.fromEntries(keys.map((k, i) => [k, cells[i]])));
+          if (error) problems.push(`Row ${n + 2}: ${error}`); else good.push(row);
+        });
+        let added = 0, skipped = 0;
+        if (good.length) {
+          const { data, error } = await supabase.from('invitations').upsert(good, { onConflict: 'email', ignoreDuplicates: true }).select('email');
+          if (error) return showMessage($('csv-message'), error.message);
+          added = data.length; skipped = good.length - data.length;
+        }
+        const summary = [`Added ${added} invitation${added === 1 ? '' : 's'}.`];
+        if (skipped) summary.push(`${skipped} already invited (left unchanged).`);
+        if (problems.length) summary.push(`Not added: ${problems.join('; ')}.`);
+        showMessage($('csv-message'), summary.join(' '), problems.length ? 'error' : 'ok');
+        if (!problems.length) $('csv').value = '';
+        loadInvites();
+      });
+
+      loadInvites();
+    }
+  </script>
+  <script type="module" src="assets/header.js"></script>
+</body>
+</html>

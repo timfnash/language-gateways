@@ -25,7 +25,10 @@ await db.exec(`
   grant execute on function auth.uid() to anon, authenticated;
   alter default privileges in schema public grant all on tables to anon, authenticated;
 `);
-for (const file of readdirSync(`${repo}/migrations`).sort()) {
+// Migrations from Phase 3 on are applied later in the test, after data written under the older rules.
+const migrations = readdirSync(`${repo}/migrations`).sort();
+const LATER = '20261003';
+for (const file of migrations.filter(f => f < LATER)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
 await db.exec(readFileSync(`${repo}/seed.sql`, 'utf8'));
@@ -220,6 +223,81 @@ r = await as(ids.bob, `delete from public.notes returning segment`);
 check('cannot delete someone else\'s note', r.rows.length === 0);
 r = await as(ids.alice, `delete from public.notes where segment = 'fid-1-1' returning segment`);
 check('member deletes own note', r.rows.length === 1);
+
+// ---------------------------------------------------------------------------
+// Phase 3: shared notes, without names
+// ---------------------------------------------------------------------------
+// A note written under Phase 2, when notes were promised to be private.
+await as(ids.alice, `insert into public.notes (segment, body) values ('fid-2-1', 'Written when notes were private')`);
+
+for (const file of migrations.filter(f => f >= LATER)) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
+
+r = await as(ids.alice, `select visibility, church, cohort from public.notes where segment = 'fid-2-1'`);
+check('older notes become "only me"', r.rows[0]?.visibility === 'me' && r.rows[0]?.cohort === 'freedom-church-jersey-2026-09');
+
+// Carol: Alice's cohort. Dave: same church, a later cohort. Bob: another church.
+await db.exec(`
+  insert into public.cohorts (id, church, name) values ('freedom-church-jersey-2027-01', 'freedom-church-jersey', 'Spring 2027');
+  insert into public.invitations (email, church, cohort) values
+    ('carol@example.com', 'freedom-church-jersey', 'freedom-church-jersey-2026-09'),
+    ('dave@example.com',  'freedom-church-jersey', 'freedom-church-jersey-2027-01');
+`);
+for (const k of ['carol', 'dave']) {
+  ids[k] = (await db.query(`insert into auth.users (email) values ($1) returning id`, [`${k}@example.com`])).rows[0].id;
+}
+const sees = async (who, scope = 'all', segment = 'fid-1-1') =>
+  (await as(ids[who], `select * from public.notes_for_segment('${segment}', '${scope}')`)).rows;
+const bodies = rows => rows.map(x => x.body).sort().join('|');
+
+await asErr('members can no longer insert notes directly', ids.alice,
+  `insert into public.notes (segment, body) values ('fid-1-1', 'x')`, 'permission denied');
+await asErr('members can no longer update notes directly', ids.alice,
+  `update public.notes set body = 'x'`, 'permission denied');
+
+r = await as(ids.alice, `select * from public.save_note('fid-1-1', 'Alice to everyone')`);
+check('save_note defaults to everyone, church/cohort from profile',
+  r.rows[0]?.visibility === 'everyone' && r.rows[0]?.church === 'freedom-church-jersey' && r.rows[0]?.approved_at === null);
+await as(ids.carol, `select public.save_note('fid-1-1', 'Carol to cohort', 'cohort')`);
+await as(ids.dave, `select public.save_note('fid-1-1', 'Dave to church', 'church')`);
+await as(ids.bob, `select public.save_note('fid-1-1', 'Bob to everyone')`);
+await as(ids.tim, `select public.save_note('fid-1-1', 'Tim keeps this', 'me')`);
+await asErr('visibility must be valid', ids.alice, `select public.save_note('fid-1-1', 'x', 'world')`, 'check constraint');
+
+check('own cohort sees everyone/cohort/church notes', bodies(await sees('alice')) === 'Alice to everyone|Carol to cohort|Dave to church');
+check('another cohort of the church sees everyone/church notes, not cohort ones',
+  bodies(await sees('dave')) === 'Alice to everyone|Dave to church');
+check('another church sees only its own until approval', bodies(await sees('bob')) === 'Bob to everyone');
+check('"only me" notes are seen only by the writer', bodies(await sees('tim')).includes('Tim keeps this') && !bodies(await sees('alice')).includes('Tim'));
+check('notes come back without author details', Object.keys((await sees('alice'))[0]).sort().join() === 'body,id,mine,updated_at');
+check('"mine" flag marks my own note', (await sees('alice')).find(x => x.body === 'Alice to everyone')?.mine === true);
+
+check('filter: my cohort', bodies(await sees('alice', 'cohort')) === 'Alice to everyone|Carol to cohort');
+check('filter: my church', bodies(await sees('alice', 'church')) === 'Alice to everyone|Carol to cohort|Dave to church');
+check('filter: only mine', bodies(await sees('alice', 'mine')) === 'Alice to everyone');
+
+await asErr('members cannot list shared notes with authors', ids.alice, `select * from public.admin_shared_notes()`, 'Admins only');
+await asErr('members cannot approve notes', ids.alice,
+  `select public.set_note_approval((select id from public.notes_for_segment('fid-1-1', 'mine')), true)`, 'Admins only');
+r = await as(ids.tim, `select * from public.admin_shared_notes()`);
+check('admin sees shared notes with writer and church', r.rows.some(x => x.body === 'Alice to everyone' && x.email === 'alice@example.com' && x.author.startsWith('Ali') && x.church === 'Freedom Church Jersey'));
+check('admin list never includes "only me" notes', !r.rows.some(x => x.body.includes('keeps this') || x.body.includes('when notes were private')));
+check('notes awaiting approval come first', r.rows[0]?.visibility === 'everyone' && r.rows[0]?.approved_at === null);
+
+const aliceNote = r.rows.find(x => x.body === 'Alice to everyone').id;
+await as(ids.tim, `select public.set_note_approval('${aliceNote}', true)`);
+check('approved note reaches other churches', bodies(await sees('bob')) === 'Alice to everyone|Bob to everyone');
+check('filter "my church" hides approved notes from elsewhere', bodies(await sees('bob', 'church')) === 'Bob to everyone');
+await as(ids.alice, `select public.save_note('fid-1-1', 'Alice, edited')`);
+check('editing withdraws approval', bodies(await sees('bob')) === 'Bob to everyone');
+await as(ids.tim, `select public.set_note_approval('${aliceNote}', true)`);
+await as(ids.alice, `select public.save_note('fid-1-1', 'Alice, edited', 'church')`);
+check('narrowing visibility withdraws approval', bodies(await sees('bob')) === 'Bob to everyone');
+await db.exec(`set role anon;`);
+try { await db.query(`select * from public.notes_for_segment('fid-1-1')`); check('signed-out visitors cannot read notes', false, 'no error'); }
+catch (e) { check('signed-out visitors cannot read notes', e.message.includes('permission denied'), e.message); }
+finally { await db.exec(`reset role;`); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
