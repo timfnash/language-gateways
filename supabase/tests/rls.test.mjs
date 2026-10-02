@@ -326,5 +326,29 @@ r = await as(ids.tim, `insert into public.cohorts (id, church, name, starts_on) 
 check('admins add cohorts', r.rows.length === 1);
 await asErr('members cannot add churches', ids.alice, `insert into public.churches (id, name) values ('x', 'X')`, 'row-level security');
 
+// ---------------------------------------------------------------------------
+// Admin: granting and removing admin rights
+// ---------------------------------------------------------------------------
+await asErr('members cannot list admins', ids.alice, `select * from public.admin_list_admins()`, 'Admins only');
+await asErr('members cannot make themselves admin', ids.alice, `select public.admin_set_admin('alice@example.com', true)`, 'Admins only');
+r = await as(ids.tim, `select * from public.admin_list_admins() as email`);
+check('admin lists admins', r.rows.map(x => x.email).join() === 'tim@zipf.me');
+await asErr('the only admin cannot remove themselves', ids.tim, `select public.admin_set_admin('tim@zipf.me', false)`, 'own admin rights');
+await as(ids.tim, `select public.admin_set_admin('bob@example.com', false)`);
+r = await as(ids.tim, `select * from public.admin_list_admins() as email`);
+check('removing a non-admin changes nothing', r.rows.length === 1);
+await as(ids.tim, `select public.admin_set_admin(' Alice@Example.com ', true)`);
+r = await as(ids.alice, `select public.is_admin() as a`);
+check('granting admin works (email normalised)', r.rows[0]?.a === true);
+await asErr('you cannot remove your own admin rights', ids.alice, `select public.admin_set_admin('alice@example.com', false)`, 'own admin rights');
+await as(ids.alice, `select public.admin_set_admin('tim@zipf.me', false)`);
+r = await as(ids.tim, `select public.is_admin() as a`);
+check('another admin can remove admin rights', r.rows[0]?.a === false);
+await asErr('…but not the last admin', ids.alice, `select public.admin_set_admin('alice@example.com', false)`, 'own admin rights');
+await db.exec(`delete from public.admins where email = 'alice@example.com'; insert into public.admins values ('tim@zipf.me'), ('x@example.com')`);
+await db.exec(`delete from public.admins where email = 'x@example.com'`);
+r = await as(ids.tim, `select public.is_admin() as a`);
+check('state restored for later tests', r.rows[0]?.a === true);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
