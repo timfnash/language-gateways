@@ -28,6 +28,7 @@ await db.exec(`
 // Migrations from Phase 3 on are applied later in the test, after data written under the older rules.
 const migrations = readdirSync(`${repo}/migrations`).sort();
 const LATER = '20261003';
+const JOIN_LINKS = '20261006';
 for (const file of migrations.filter(f => f < LATER)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
@@ -230,7 +231,7 @@ check('member deletes own note', r.rows.length === 1);
 // A note written under Phase 2, when notes were promised to be private.
 await as(ids.alice, `insert into public.notes (segment, body) values ('fid-2-1', 'Written when notes were private')`);
 
-for (const file of migrations.filter(f => f >= LATER)) {
+for (const file of migrations.filter(f => f >= LATER && f < JOIN_LINKS)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
 
@@ -349,6 +350,103 @@ await db.exec(`delete from public.admins where email = 'alice@example.com'; inse
 await db.exec(`delete from public.admins where email = 'x@example.com'`);
 r = await as(ids.tim, `select public.is_admin() as a`);
 check('state restored for later tests', r.rows[0]?.a === true);
+
+// ---------------------------------------------------------------------------
+// Join links, approvals and church admins
+// ---------------------------------------------------------------------------
+for (const file of migrations.filter(f => f >= JOIN_LINKS)) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
+const code = (await db.query(`select join_code from public.cohorts where id = 'freedom-church-jersey-2026-09'`)).rows[0].join_code;
+const otherCode = (await db.query(`select join_code from public.cohorts where id = 'other-2026'`)).rows[0].join_code;
+check('every cohort has a join code', /^[0-9a-f]{10}$/.test(code) && otherCode && otherCode !== code);
+
+await db.exec(`set role anon;`);
+r = await db.query(`select * from public.join_cohort_info($1)`, [code]);
+const r2b = await db.query(`select * from public.join_cohort_info('nope123456')`);
+await db.exec(`reset role;`);
+check('join page can show the cohort for a valid code (signed out)',
+  r.rows[0]?.church === 'Freedom Church Jersey' && r.rows[0]?.cohort === 'Autumn 2026' && r.rows[0]?.requires_approval === true);
+check('…and nothing for an invalid code', r2b.rows.length === 0);
+
+const hookWith = async (email, meta) => (await db.query(`select public.hook_before_user_created($1) r`,
+  [JSON.stringify({ user: { email, user_metadata: meta } })])).rows[0].r;
+check('hook allows an uninvited email with a valid join code', JSON.stringify(await hookWith('jo@example.com', { join_code: code })) === '{}');
+check('hook rejects an invalid join code', (await hookWith('jo@example.com', { join_code: 'wrongcode1' })).error?.http_code === 403);
+check('hook still allows invited emails', JSON.stringify(await hookWith('ALICE@example.com', {})) === '{}');
+await expectError('trigger blocks an invalid join code',
+  `insert into auth.users (email, raw_user_meta_data) values ('eve@example.com', '{"join_code":"wrongcode1"}')`, 'not on the invitation list');
+
+const join = async (who, joinCode, extra = {}) => {
+  ids[who] = (await db.query(`insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id`,
+    [`${who}@example.com`, JSON.stringify({ join_code: joinCode, given_name: who[0].toUpperCase() + who.slice(1), family_name: 'Joiner', mother_tongue: 'Tagalog', ...extra })])).rows[0].id;
+};
+await join('jo', code);
+await join('kim', otherCode);
+const jo = (await db.query(`select * from public.profiles where id = $1`, [ids.jo])).rows[0];
+check('joining creates a pending profile in that cohort, from what they entered',
+  jo.status === 'pending' && jo.cohort === 'freedom-church-jersey-2026-09' && jo.church === 'freedom-church-jersey'
+  && jo.given_name === 'Jo' && jo.family_name === 'Joiner' && jo.mother_tongue === 'Tagalog');
+check('…and no invitation yet', (await db.query(`select 1 from public.invitations where email = 'jo@example.com'`)).rows.length === 0);
+
+r = await as(ids.jo, `select id from public.segments`);
+check('pending people see no course content', r.rows.length === 0);
+check('pending people see no notes', (await sees('jo')).length === 0);
+await asErr('pending people cannot write notes', ids.jo, `select public.save_note('fid-1-1', 'x')`, 'Only course members');
+r = await as(ids.jo, `select p.status, c.name from public.profiles p join public.cohorts c on c.id = p.cohort`);
+check('pending people can read their own profile and cohort name', r.rows[0]?.status === 'pending' && r.rows[0]?.name === 'Autumn 2026');
+
+await asErr('members cannot list join requests', ids.alice, `select * from public.admin_join_requests()`, 'Admins only');
+r = await as(ids.tim, `select email from public.admin_join_requests() order by email`);
+check('admins see every join request', r.rows.map(x => x.email).join() === 'jo@example.com,kim@example.com');
+
+// Roles
+await asErr('members cannot set roles', ids.alice, `select public.admin_set_role('alice@example.com', 'church')`, 'Admins only');
+await as(ids.tim, `select public.admin_set_role('Alice@Example.com', 'church')`);
+r = await as(ids.alice, `select * from public.my_role()`);
+check('church admin role takes the church from their invitation', r.rows[0]?.role === 'church' && r.rows[0]?.church === 'freedom-church-jersey');
+r = await as(ids.tim, `select * from public.admin_list_roles() order by email`);
+check('admin lists roles', JSON.stringify(r.rows.map(x => [x.email, x.role])) === JSON.stringify([['alice@example.com', 'church'], ['tim@zipf.me', 'admin']]));
+r = await as(ids.alice, `select email from public.admin_join_requests()`);
+check('church admins see only their church\'s requests', r.rows.map(x => x.email).join() === 'jo@example.com');
+r = await as(ids.alice, `select email from public.invitations`);
+check('church admins see their church\'s invitations', r.rows.length > 0 && !r.rows.some(x => x.email === 'bob@example.com'));
+await db.exec(`insert into public.cohorts (id, church, name) values ('freedom-church-jersey-2027-09', 'freedom-church-jersey', 'Autumn 2027')`);
+r = await as(ids.alice, `select id from public.cohorts order by id`);
+check('church admins see all their church\'s cohorts, and no others',
+  r.rows.map(x => x.id).join() === 'freedom-church-jersey-2026-09,freedom-church-jersey-2027-01,freedom-church-jersey-2027-09');
+await asErr('church admins cannot approve another church\'s request', ids.alice, `select public.approve_join_request('${ids.kim}')`, 'Admins only');
+await asErr('church admins cannot set roles', ids.alice, `select public.admin_set_role('bob@example.com', 'church')`, 'Admins only');
+await asErr('church admins cannot remove people', ids.alice, `select public.admin_remove_person('bob@example.com')`, 'Admins only');
+await asErr('church admins cannot see who wrote shared notes', ids.alice, `select * from public.admin_shared_notes()`, 'Admins only');
+
+await as(ids.alice, `select public.approve_join_request('${ids.jo}')`);
+r = await as(ids.jo, `select id from public.segments`);
+check('approval lets them in', r.rows.length > 0);
+r = await db.query(`select cohort, given_name, mother_tongue from public.invitations where email = 'jo@example.com'`);
+check('approval adds them to the invitations list', r.rows[0]?.cohort === 'freedom-church-jersey-2026-09' && r.rows[0]?.mother_tongue === 'Tagalog');
+await asErr('an approved request cannot be approved again', ids.alice, `select public.approve_join_request('${ids.jo}')`, 'No such request');
+
+await as(ids.tim, `select public.decline_join_request('${ids.kim}')`);
+check('declining deletes the pending account', (await db.query(`select 1 from auth.users where id = $1`, [ids.kim])).rows.length === 0);
+
+await db.exec(`update public.cohorts set join_requires_approval = false where id = 'other-2026'`);
+await join('lee', otherCode);
+r = await db.query(`select p.status, i.email from public.profiles p left join public.invitations i on i.email = p.email where p.id = $1`, [ids.lee]);
+check('cohorts without approval let joiners straight in, and list them', r.rows[0]?.status === 'active' && r.rows[0]?.email === 'lee@example.com');
+
+// Role cycle and safety
+await asErr('you cannot change your own role', ids.tim, `select public.admin_set_role('tim@zipf.me', 'church')`, 'own role');
+await as(ids.tim, `select public.admin_set_role('alice@example.com', 'admin')`);
+r = await as(ids.alice, `select * from public.my_role()`);
+check('church admin → admin', r.rows[0]?.role === 'admin');
+await as(ids.tim, `select public.admin_set_role('alice@example.com', 'none')`);
+r = await as(ids.alice, `select * from public.my_role()`);
+check('admin → none', r.rows[0]?.role === null);
+await asErr('church admin needs a church', ids.tim, `select public.admin_set_role('stranger@example.com', 'church')`, 'Invite them');
+await as(ids.tim, `select public.admin_set_role('alice@example.com', 'church')`);
+await as(ids.tim, `select public.admin_remove_person('alice@example.com')`);
+check('removing a person clears their church admin role', (await db.query(`select 1 from public.church_admins`)).rows.length === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

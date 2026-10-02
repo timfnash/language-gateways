@@ -30,10 +30,12 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   (for Claude API calls such as the précis and takeaway summaries).
 - **The repo and the Pages site are public. Never commit gated content:** no transcripts, table write-ups,
   attendee data or raw recordings. Gated content lives in Supabase behind row-level security (RLS).
-- **Access is invitation-only.** The `invitations` table holds church*, cohort*, email*, given_name,
+- **Access is by invitation or join link.** The `invitations` table holds church*, cohort*, email*, given_name,
   family_name, mother_tongue, other_languages (* = required). Signup is rejected unless the email is
-  on the list; enforce this in Supabase (auth hook or trigger), not only in the UI.
-  Bulk entry: CSV import in the Supabase table editor at first, then an admin page with single and paste-CSV entry.
+  invited or the signup carries a cohort's join code; enforced in Supabase (auth hook and trigger), not only in the UI.
+  Churches won't share members' details, so each cohort has a join link; joiners get a 'pending' profile and
+  see nothing until an admin or a church admin approves them (approval adds them to `invitations`).
+  Roles: admins (`admins`) and church admins (`church_admins`, one church each). Managed on the Admin page.
 - **Profile (for now):** given name, family name, mother tongue, other languages. Pre-filled from the
   invitation. Leave out sensitive fields (denomination, years as a Christian) until consent and privacy are designed.
 - **Visibility:** comments and notes are private, visible to my church, or visible to everyone, with an

@@ -48,9 +48,10 @@ export async function signOut() {
 }
 
 // Where a signed-in person goes next: the profile page until they've confirmed it, then home.
+// People waiting for approval go home, which explains the wait.
 export async function nextPage(userId) {
-  const { data } = await supabase.from('profiles').select('confirmed_at').eq('id', userId).single();
-  return data?.confirmed_at ? 'home.html' : 'profile.html';
+  const { data } = await supabase.from('profiles').select('confirmed_at, status').eq('id', userId).single();
+  return data?.confirmed_at || data?.status === 'pending' ? 'home.html' : 'profile.html';
 }
 
 // ---------------------------------------------------------------------------

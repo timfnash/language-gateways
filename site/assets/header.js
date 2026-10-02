@@ -40,8 +40,9 @@ const signedIn = Boolean(data?.session);
 for (const li of header.querySelectorAll('[data-signed-in]')) li.hidden = !signedIn;
 for (const li of header.querySelectorAll('[data-signed-out]')) li.hidden = signedIn;
 if (signedIn) {
-  const { data: isAdmin } = await supabase.rpc('is_admin');
-  for (const li of header.querySelectorAll('[data-admin]')) li.hidden = !isAdmin;
+  // Admins and church admins get the Admin page (church admins see their church's requests and people).
+  const { data: role } = await supabase.rpc('my_role');
+  for (const li of header.querySelectorAll('[data-admin]')) li.hidden = !role?.[0]?.role;
 } else {
   header.querySelector('#menu-home').href = 'index.html';
   header.querySelector('#logo-link').href = 'index.html';

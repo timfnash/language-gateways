@@ -21,6 +21,13 @@
     <a id="continue" class="card continue" hidden></a>
     </div>
 
+    <div class="card pending" id="pending" hidden>
+      <h2>Waiting for approval</h2>
+      <p id="pending-text">Thanks for joining. Your request is waiting for approval by your church or the course team.</p>
+      <p class="meta">Once it’s approved, the course will appear here. Questions? Email
+        <a href="mailto:courses@languagegateways.com">courses@languagegateways.com</a>.</p>
+    </div>
+
     <div id="sessions"></div>
 
     <div class="card" id="empty" hidden>
@@ -38,7 +45,16 @@
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 
     const { profile } = await requireSignedIn();
-    if (profile) {
+    if (profile?.status === 'pending') {
+      if (profile.given_name) document.getElementById('greeting').textContent = `Welcome, ${profile.given_name}`;
+      const [{ data: church }, { data: cohort }] = await Promise.all([
+        supabase.from('churches').select('name').eq('id', profile.church).maybeSingle(),
+        supabase.from('cohorts').select('name').eq('id', profile.cohort).maybeSingle(),
+      ]);
+      if (church && cohort) document.getElementById('pending-text').textContent =
+        `Thanks for joining. Your request to join ${church.name} · ${cohort.name} is waiting for approval by your church or the course team.`;
+      document.getElementById('pending').hidden = false;
+    } else if (profile) {
       if (!profile.confirmed_at) location.replace(pageUrl('profile.html'));
       if (profile.given_name) document.getElementById('greeting').textContent = `Welcome, ${profile.given_name}`;
 

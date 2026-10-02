@@ -83,7 +83,8 @@
     const render = md => DOMPurify.sanitize(marked.parse(md ?? ''));
 
     const { profile } = await requireSignedIn();
-    if (profile) {
+    if (profile?.status === 'pending') location.replace(pageUrl('home.html'));
+    else if (profile) {
       if (!profile.confirmed_at) location.replace(pageUrl('profile.html'));
       const id = new URLSearchParams(location.search).get('id');
       const { segments, progress } = await loadCourse();

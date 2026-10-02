@@ -15,12 +15,20 @@
     <h1>Course admin</h1>
 
     <div class="tabs ui" role="tablist">
-      <button role="tab" id="tab-notes" aria-selected="true" aria-controls="panel-notes">Shared notes</button>
+      <button role="tab" id="tab-requests" aria-selected="true" aria-controls="panel-requests">Requests to join</button>
+      <button role="tab" id="tab-notes" aria-selected="false" aria-controls="panel-notes" data-admin-only>Shared notes</button>
       <button role="tab" id="tab-invites" aria-selected="false" aria-controls="panel-invites">Invitations</button>
-      <button role="tab" id="tab-groups" aria-selected="false" aria-controls="panel-groups">Churches &amp; cohorts</button>
+      <button role="tab" id="tab-groups" aria-selected="false" aria-controls="panel-groups" data-admin-only>Churches &amp; cohorts</button>
     </div>
 
-    <section id="panel-notes" role="tabpanel" class="ui">
+    <section id="panel-requests" role="tabpanel" class="ui">
+      <p class="lead">People who used a church’s join link and are waiting to be let in. Approving adds them to the
+        invitations list; declining deletes their account.</p>
+      <ul class="note-list requests" id="requests"></ul>
+      <p class="message" id="request-message" hidden></p>
+    </section>
+
+    <section id="panel-notes" role="tabpanel" class="ui" hidden>
       <p class="lead">Notes are shown to participants without names. Only admins see who wrote them.
         Notes for <strong>all participants</strong> reach other churches once you approve them.</p>
       <fieldset class="choices compact" id="note-filter">
@@ -32,7 +40,7 @@
     </section>
 
     <section id="panel-invites" role="tabpanel" class="ui" hidden>
-      <div class="admin-grid">
+      <div class="admin-grid" data-admin-only>
         <form class="card" id="invite-one">
           <h2>Invite one person</h2>
           <label for="i-email">Email</label>
@@ -63,9 +71,9 @@
         </form>
       </div>
 
-      <h2>Invited</h2>
+      <h2 id="people-heading">Invited</h2>
       <div class="filters">
-        <label>Church <select id="f-church"></select></label>
+        <label data-admin-only>Church <select id="f-church"></select></label>
         <label>Cohort <select id="f-cohort"></select></label>
         <label>Status <select id="f-status">
           <option value="">All invitees</option>
@@ -115,14 +123,21 @@
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
     const when = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
+    // Admins see everything; church admins see their church's join requests and people (read-only).
     const { profile } = await requireSignedIn();
-    const { data: isAdmin } = profile ? await supabase.rpc('is_admin') : { data: false };
-    if (!isAdmin) location.replace(pageUrl('home.html'));
+    const { data: roleRows } = profile ? await supabase.rpc('my_role') : { data: [] };
+    const role = roleRows?.[0]?.role;
+    const isAdmin = role === 'admin';
+    if (!role) location.replace(pageUrl('home.html'));
     else start();
 
     function start() {
+      if (!isAdmin) {
+        document.querySelectorAll('[data-admin-only]').forEach(el => { el.hidden = true; });
+        $('people-heading').textContent = 'People in your church';
+      }
       // Tabs
-      const tabs = { notes: $('tab-notes'), invites: $('tab-invites'), groups: $('tab-groups') };
+      const tabs = { requests: $('tab-requests'), notes: $('tab-notes'), invites: $('tab-invites'), groups: $('tab-groups') };
       for (const [name, tab] of Object.entries(tabs)) tab.addEventListener('click', () => {
         for (const [n, t] of Object.entries(tabs)) {
           t.setAttribute('aria-selected', String(n === name));
@@ -130,7 +145,36 @@
         }
       });
       if (location.hash === '#invitations') tabs.invites.click();
-      if (location.hash === '#cohorts') tabs.groups.click();
+      if (location.hash === '#cohorts' && isAdmin) tabs.groups.click();
+      if (location.hash === '#notes' && isAdmin) tabs.notes.click();
+
+      // ---- Requests to join -----------------------------------------------------
+      async function loadRequests() {
+        const { data, error } = await supabase.rpc('admin_join_requests');
+        if (error) { $('requests').innerHTML = `<li class="empty">${esc(error.message)}</li>`; return; }
+        tabs.requests.textContent = data.length ? `Requests to join (${data.length})` : 'Requests to join';
+        $('requests').innerHTML = data.length ? data.map(r => `
+          <li class="waiting">
+            <p><strong>${esc([r.given_name, r.family_name].filter(Boolean).join(' ') || r.email)}</strong> &lt;${esc(r.email)}&gt;</p>
+            <p class="meta">${esc(cohortName(r.cohort))} · asked ${when(r.created_at)}${r.mother_tongue || r.other_languages
+              ? ` · ${esc([r.mother_tongue, r.other_languages].filter(Boolean).join('; '))}` : ''}</p>
+            <button type="button" data-approve="${r.id}">Approve</button>
+            <button type="button" class="secondary" data-decline="${r.id}" data-email="${esc(r.email)}">Decline</button>
+          </li>`).join('')
+          : '<li class="empty meta">Nobody is waiting to join.</li>';
+      }
+      $('requests').addEventListener('click', async e => {
+        const ok = e.target.closest('button[data-approve]'), no = e.target.closest('button[data-decline]');
+        if (!ok && !no) return;
+        if (no && !confirm(`Decline ${no.dataset.email}? This deletes the account they created.`)) return;
+        (ok || no).disabled = true;
+        const { error } = ok
+          ? await supabase.rpc('approve_join_request', { p_user: ok.dataset.approve })
+          : await supabase.rpc('decline_join_request', { p_user: no.dataset.decline });
+        if (error) { (ok || no).disabled = false; return showMessage($('request-message'), error.message); }
+        showMessage($('request-message'), ok ? 'Approved. They can now see the course.' : 'Declined.', 'ok');
+        loadAll().then(loadRequests);
+      });
 
       // ---- Shared notes --------------------------------------------------------
       const LABEL = { everyone: 'All participants', church: 'Their church', cohort: 'Their cohort' };
@@ -161,23 +205,24 @@
         if (error) { alert(error.message); b.disabled = false; return; }
         loadNotes();
       });
-      loadNotes();
+      if (isAdmin) loadNotes();
 
       // ---- Invitations, churches and cohorts -----------------------------------
-      let churches = [], cohorts = [], invites = [], joined = new Set(), admins = new Set();
+      let churches = [], cohorts = [], invites = [], joined = new Set(), roles = new Map();
+      const cohortName = id => { const c = cohorts.find(c => c.id === id); return c ? cohortLabel(c) : id; };
       const cohortLabel = c => `${churches.find(ch => ch.id === c.church)?.name ?? c.church} · ${c.name}`;
       const options = (items, label, all) => (all ? `<option value="">${all}</option>` : '') +
         items.map(i => `<option value="${esc(i.id)}">${esc(label(i))}</option>`).join('');
 
       async function loadAll() {
-        const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: adminRows }] = await Promise.all([
+        const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: roleList }] = await Promise.all([
           supabase.from('churches').select('id, name').order('name'),
-          supabase.from('cohorts').select('id, church, name').order('created_at', { ascending: false }),
+          supabase.from('cohorts').select('id, church, name, join_code, join_requires_approval').order('created_at', { ascending: false }),
           supabase.from('invitations').select('*').order('created_at', { ascending: false }),
-          supabase.from('profiles').select('email'),
-          supabase.rpc('admin_list_admins'),
+          supabase.from('profiles').select('email').eq('status', 'active'),
+          isAdmin ? supabase.rpc('admin_list_roles') : Promise.resolve({ data: [] }),
         ]);
-        admins = new Set((adminRows ?? []).map(a => typeof a === 'string' ? a : a.admin_list_admins ?? a.email));
+        roles = new Map((roleList ?? []).map(r => [r.email, r.role]));
         churches = ch ?? []; cohorts = cs ?? []; invites = inv ?? [];
         joined = new Set((profiles ?? []).map(p => p.email));
 
@@ -206,26 +251,30 @@
         const filtered = shown.length !== invites.length;
         $('invite-count').textContent = `${shown.length} invited, ${shown.filter(i => joined.has(i.email)).length} joined`
           + (filtered ? ` (filtered from ${invites.length})` : '') + '.';
-        const cohortName = id => { const c = cohorts.find(c => c.id === id); return c ? cohortLabel(c) : id; };
         const ICON = {
           trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>',
           check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
           shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
         };
         const me = profile.email;
-        $('invites').innerHTML = `<thead><tr><th>Email</th><th>Name</th><th>Cohort</th><th>Languages</th><th><span class="visually-hidden">Joined, admin and remove</span></th></tr></thead><tbody>` +
+        const ROLE = { none: 'No admin rights', church: 'Church admin', admin: 'Admin' };
+        const NEXT = { none: 'church', church: 'admin', admin: 'none' };
+        $('invites').innerHTML = `<thead><tr><th>Email</th><th>Name</th><th>Cohort</th><th>Languages</th><th><span class="visually-hidden">Joined, role and remove</span></th></tr></thead><tbody>` +
           (shown.length ? shown.map(i => {
-            const isAdmin = admins.has(i.email), isMe = i.email === me;
-            const adminTitle = isMe ? 'You’re an admin. Another admin can remove your admin rights.'
-              : isAdmin ? `Admin. Click to remove admin rights from ${i.email}.` : `Click to make ${i.email} an admin.`;
-            const removeTitle = isAdmin ? 'Remove admin rights before removing this person.' : `Remove ${i.email}`;
+            const r = roles.get(i.email) ?? 'none', isMe = i.email === me, joinedIcon = joined.has(i.email)
+              ? `<span class="icon joined" title="Joined" aria-label="Joined" role="img">${ICON.check}</span>`
+              : '<span class="icon" title="Not joined yet" aria-label="Not joined yet" role="img"></span>';
+            if (!isAdmin) return `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
+              <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
+              <td class="actions">${joinedIcon}</td></tr>`;
+            const roleTitle = isMe ? `${ROLE[r]} (that's you). Another admin can change your role.`
+              : `${ROLE[r]}. Click to change to: ${ROLE[NEXT[r]].toLowerCase()}.`;
+            const removeTitle = r === 'admin' ? 'Remove their admin rights before removing this person.' : `Remove ${i.email}`;
             return `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
               <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
-              <td class="actions">${joined.has(i.email)
-                ? `<span class="icon joined" title="Joined" aria-label="Joined" role="img">${ICON.check}</span>`
-                : '<span class="icon" title="Not joined yet" aria-label="Not joined yet" role="img"></span>'}<button type="button" class="icon-btn admin-toggle" data-admin="${esc(i.email)}" aria-pressed="${isAdmin}"
-                    title="${esc(adminTitle)}" aria-label="${esc(adminTitle)}"${isMe ? ' disabled' : ''}>${ICON.shield}</button><button type="button" class="icon-btn danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email)}"
-                    title="${esc(removeTitle)}" aria-label="${esc(removeTitle)}"${isAdmin ? ' disabled' : ''}>${ICON.trash}</button></td></tr>`;
+              <td class="actions">${joinedIcon}<button type="button" class="icon-btn role-toggle" data-email="${esc(i.email)}" data-role="${r}"
+                    aria-pressed="${r !== 'none'}" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}"${isMe ? ' disabled' : ''}>${ICON.shield}</button><button type="button" class="icon-btn danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email)}"
+                    title="${esc(removeTitle)}" aria-label="${esc(removeTitle)}"${r === 'admin' ? ' disabled' : ''}>${ICON.trash}</button></td></tr>`;
           }).join('')
           : `<tr><td colspan="5" class="meta">Nobody matches.</td></tr>`) + '</tbody>';
       }
@@ -235,17 +284,20 @@
       $('f-search').addEventListener('input', drawInvites);
 
       $('invites').addEventListener('click', async e => {
-        const t = e.target.closest('button[data-admin]');
+        const t = e.target.closest('button[data-role]');
         if (t) {
-          const email = t.dataset.admin, makeAdmin = t.getAttribute('aria-pressed') !== 'true';
-          const question = makeAdmin
-            ? `Make ${email} an admin?\n\nThey'll be able to see who wrote shared notes, approve notes, and manage churches, cohorts, invitations and people.`
-            : `Remove admin rights from ${email}?`;
+          const email = t.dataset.email, next = { none: 'church', church: 'admin', admin: 'none' }[t.dataset.role];
+          const church = churches.find(c => c.id === invites.find(i => i.email === email)?.church)?.name ?? 'their church';
+          const question = {
+            church: `Make ${email} a church admin for ${church}?\n\nThey'll be able to approve people who ask to join ${church}, and see its members.`,
+            admin: `Make ${email} an admin?\n\nThey'll be able to see who wrote shared notes, approve notes, and manage churches, cohorts, invitations and people.`,
+            none: `Remove admin rights from ${email}?`,
+          }[next];
           if (!confirm(question)) return;
           t.disabled = true;
-          const { error } = await supabase.rpc('admin_set_admin', { p_email: email, p_admin: makeAdmin });
+          const { error } = await supabase.rpc('admin_set_role', { p_email: email, p_role: next });
           if (error) { t.disabled = false; return showMessage($('remove-message'), error.message); }
-          showMessage($('remove-message'), makeAdmin ? `${email} is now an admin.` : `${email} is no longer an admin.`, 'ok');
+          showMessage($('remove-message'), { church: `${email} is now a church admin for ${church}.`, admin: `${email} is now an admin.`, none: `${email} no longer has admin rights.` }[next], 'ok');
           return loadAll();
         }
         const b = e.target.closest('button[data-remove]');
@@ -267,13 +319,43 @@
         $('groups').innerHTML = churches.map(ch => {
           const cs = cohorts.filter(c => c.church === ch.id);
           return `<section class="card group"><h2>${esc(ch.name)}</h2><p class="meta">ID: <code>${esc(ch.id)}</code></p>
-            ${cs.length ? `<div class="table-wrap"><table class="invites"><thead><tr><th>Cohort</th><th>ID</th><th>Invited</th><th>Joined</th></tr></thead><tbody>
+            ${cs.length ? `<div class="table-wrap"><table class="invites"><thead><tr><th>Cohort</th><th>ID</th><th>Invited</th><th>Joined</th><th>Join link</th></tr></thead><tbody>
               ${cs.map(c => `<tr><td>${esc(c.name)}</td><td><code>${esc(c.id)}</code></td>
-                <td>${count({ key: 'cohort', id: c.id }, () => true)}</td><td>${count({ key: 'cohort', id: c.id }, i => joined.has(i.email))}</td></tr>`).join('')}
+                <td>${count({ key: 'cohort', id: c.id }, () => true)}</td><td>${count({ key: 'cohort', id: c.id }, i => joined.has(i.email))}</td>
+                <td class="join-link">
+                  <button type="button" class="link" data-copy="${esc(c.id)}">Copy link</button> ·
+                  <button type="button" class="link" data-new-code="${esc(c.id)}">New link</button>
+                  <label class="approval"><input type="checkbox" data-approval="${esc(c.id)}"${c.join_requires_approval ? ' checked' : ''}> Needs approval</label>
+                </td></tr>`).join('')}
               </tbody></table></div>` : '<p class="meta">No cohorts yet.</p>'}
           </section>`;
         }).join('');
       }
+
+      const joinUrl = c => new URL(`join.html?c=${encodeURIComponent(c.join_code)}`, location.href).href;
+      $('groups').addEventListener('click', async e => {
+        const copy = e.target.closest('button[data-copy]'), fresh = e.target.closest('button[data-new-code]');
+        if (copy) {
+          const c = cohorts.find(c => c.id === copy.dataset.copy);
+          try { await navigator.clipboard.writeText(joinUrl(c)); copy.textContent = 'Copied'; }
+          catch { prompt('Copy this join link:', joinUrl(c)); }
+          setTimeout(() => { copy.textContent = 'Copy link'; }, 2000);
+        }
+        if (fresh) {
+          if (!confirm('Make a new join link for this cohort? The old link will stop working.')) return;
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+          const code = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => chars[b % chars.length]).join('');
+          const { error } = await supabase.from('cohorts').update({ join_code: code }).eq('id', fresh.dataset.newCode);
+          if (error) return alert(error.message);
+          loadAll();
+        }
+      });
+      $('groups').addEventListener('change', async e => {
+        const box = e.target.closest('input[data-approval]');
+        if (!box) return;
+        const { error } = await supabase.from('cohorts').update({ join_requires_approval: box.checked }).eq('id', box.dataset.approval);
+        if (error) { box.checked = !box.checked; alert(error.message); }
+      });
 
       // IDs are suggested from the names (and start date) until someone edits them by hand.
       const slug = t => t.toLowerCase().replace(/['’]/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -384,7 +466,7 @@
         loadAll();
       });
 
-      loadAll();
+      loadAll().then(loadRequests);
     }
   </script>
   <script type="module" src="assets/header.js"></script>

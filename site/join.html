@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join · Flourishing in Diversity</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main class="split top">
+    <div class="intro">
+      <p class="kicker">Start turning barriers into gateways</p>
+      <h1>Join the course</h1>
+      <p class="lead" id="intro">Checking your link…</p>
+    </div>
+
+    <form class="card" id="form" hidden>
+      <p id="message" class="message" hidden></p>
+      <p class="meta" id="cohort-line"></p>
+
+      <label for="given_name">Given name</label>
+      <input id="given_name" autocomplete="given-name" required>
+      <label for="family_name">Family name</label>
+      <input id="family_name" autocomplete="family-name" required>
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" required>
+      <label for="password">Choose a password <span class="hint">(at least 8 characters)</span></label>
+      <input id="password" type="password" autocomplete="new-password" minlength="8" required>
+      <label for="mother_tongue">Mother tongue <span class="hint">(the language you first learned)</span></label>
+      <input id="mother_tongue">
+      <label for="other_languages">Other languages <span class="hint">(separate with commas)</span></label>
+      <input id="other_languages" placeholder="e.g. English, French">
+
+      <label class="consent"><input type="checkbox" id="consent" required>
+        <span>I agree to the <a href="terms.html" target="_blank">terms of use</a> and have read the
+          <a href="privacy.html" target="_blank">privacy notice</a>.</span></label>
+
+      <button type="submit" class="wide">Ask to join</button>
+      <p class="small">Already have an account? <a href="index.html">Sign in</a></p>
+    </form>
+
+    <div class="card" id="done" hidden>
+      <h2>Nearly there</h2>
+      <p>We’ve sent you an email. Click the link in it to confirm your address, then sign in.</p>
+      <p id="done-approval"></p>
+    </div>
+  </main>
+
+  <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
+
+  <script type="module">
+    import { supabase, configured, pageUrl, showMessage, friendlyError, notConfiguredBanner } from './assets/app.js';
+
+    const $ = id => document.getElementById(id);
+    const code = new URLSearchParams(location.search).get('c')?.trim();
+    // Keep the code in the session, not in the address bar or any outgoing links.
+    if (code) history.replaceState(null, '', location.pathname);
+
+    if (!configured) notConfiguredBanner();
+    else start();
+
+    async function start() {
+      const { data } = code ? await supabase.rpc('join_cohort_info', { p_code: code }) : { data: [] };
+      const cohort = data?.[0];
+      if (!cohort) {
+        $('intro').textContent = 'This join link isn’t valid. Please ask your church for the current link, or contact courses@languagegateways.com.';
+        return;
+      }
+      $('intro').textContent = `Flourishing in Diversity is a five-session course on how a church’s linguistic diversity helps it flourish. Create your account to join ${cohort.church}’s group.`;
+      $('cohort-line').textContent = `${cohort.church} · ${cohort.cohort}`;
+      $('form').hidden = false;
+
+      $('form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const value = id => $(id).value.trim();
+        const button = e.submitter ?? $('form').querySelector('button[type="submit"]');
+        button.disabled = true;
+        const { error } = await supabase.auth.signUp({
+          email: value('email'),
+          password: $('password').value,
+          options: {
+            emailRedirectTo: pageUrl('index.html'),
+            data: { join_code: code, given_name: value('given_name'), family_name: value('family_name'),
+                    mother_tongue: value('mother_tongue'), other_languages: value('other_languages') },
+          },
+        });
+        button.disabled = false;
+        if (error) return showMessage($('message'), /invitation list/i.test(error.message)
+          ? 'This join link has stopped working. Please ask your church for the current link.'
+          : friendlyError(error));
+        $('form').hidden = true;
+        $('done-approval').textContent = cohort.requires_approval
+          ? `Someone from ${cohort.church} or the course team will then approve your request. Until then you’ll see a short “waiting for approval” message when you sign in.`
+          : 'You’ll then go straight into the course.';
+        $('done').hidden = false;
+      });
+    }
+  </script>
+  <script type="module" src="assets/header.js"></script>
+</body>
+</html>

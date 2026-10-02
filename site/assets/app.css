@@ -22,6 +22,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -260,6 +261,12 @@ footer a { color: var(--muted); }
   .course { font-size: .6rem; letter-spacing: .1em; max-width: 7.5rem; }
 }
 
+/* Join page and pending state */
+label.consent { display: flex; gap: 10px; align-items: flex-start; margin-top: 20px; font-weight: 400; font-size: .9rem; letter-spacing: 0; text-transform: none; }
+label.consent input { width: auto; margin-top: 4px; accent-color: var(--brand); }
+.pending { border-left: 6px solid var(--accent); }
+.pending h2 { margin-top: 0; }
+
 /* Admin page */
 .filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 12px; }
 .filters label { margin: 0; flex: 1 1 12rem; }
@@ -273,9 +280,16 @@ button.link.danger { color: var(--error-text); font-size: .85rem; }
 .icon-btn:hover:not(:disabled) { background: var(--bg); color: var(--brand); }
 .icon-btn.danger:hover:not(:disabled) { color: var(--error-text); }
 .icon-btn:disabled { opacity: .35; cursor: default; }
-.admin-toggle[aria-pressed='true'] { color: var(--brand); }
-.admin-toggle[aria-pressed='true'] svg { fill: currentColor; }
-.admin-toggle[aria-pressed='true']:disabled { opacity: 1; }
+.role-toggle[data-role='church'] { color: var(--brand); }
+.role-toggle[data-role='admin'] { color: var(--accent); }
+.role-toggle[data-role='church'] svg, .role-toggle[data-role='admin'] svg { fill: currentColor; }
+.role-toggle:disabled { opacity: 1; cursor: default; }
+.requests li button { margin: 10px 8px 0 0; padding: 9px 16px; font-size: .72rem; }
+.requests li p { margin: 0 0 4px; }
+.join-link { white-space: nowrap; }
+.join-link button.link { font-size: .85rem; }
+.join-link .approval { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-weight: 400; font-size: .8rem; letter-spacing: 0; text-transform: none; }
+.join-link .approval input { width: auto; margin: 0; accent-color: var(--brand); }
 .invites td.actions { width: 1%; white-space: nowrap; padding-top: 6px; }
 .invites td.actions > * { vertical-align: middle; }
 .icon { display: inline-block; width: 30px; height: 30px; padding: 6px; line-height: 0; color: var(--brand); }
