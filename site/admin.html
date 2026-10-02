@@ -67,6 +67,11 @@
       <div class="filters">
         <label>Church <select id="f-church"></select></label>
         <label>Cohort <select id="f-cohort"></select></label>
+        <label>Status <select id="f-status">
+          <option value="">All invitees</option>
+          <option value="joined">Joined</option>
+          <option value="waiting">Not yet joined</option>
+        </select></label>
         <label>Search <input id="f-search" type="search" placeholder="Name or email"></label>
       </div>
       <p class="meta" id="invite-count"></p>
@@ -193,8 +198,10 @@
       }
 
       function drawInvites() {
-        const church = $('f-church').value, cohort = $('f-cohort').value, q = $('f-search').value.trim().toLowerCase();
+        const church = $('f-church').value, cohort = $('f-cohort').value, status = $('f-status').value;
+        const q = $('f-search').value.trim().toLowerCase();
         const shown = invites.filter(i => (!church || i.church === church) && (!cohort || i.cohort === cohort)
+          && (!status || (status === 'joined') === joined.has(i.email))
           && (!q || `${i.email} ${i.given_name ?? ''} ${i.family_name ?? ''}`.toLowerCase().includes(q)));
         const filtered = shown.length !== invites.length;
         $('invite-count').textContent = `${shown.length} invited, ${shown.filter(i => joined.has(i.email)).length} joined`
@@ -224,6 +231,7 @@
       }
       $('f-church').addEventListener('change', () => { fillCohortFilter(); drawInvites(); });
       $('f-cohort').addEventListener('change', drawInvites);
+      $('f-status').addEventListener('change', drawInvites);
       $('f-search').addEventListener('input', drawInvites);
 
       $('invites').addEventListener('click', async e => {
