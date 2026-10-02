@@ -44,6 +44,9 @@ def read_folder(folder):
         for name in seg['slides']:
             if not (folder / 'slides' / name).exists():
                 problems.append(f"{seg['id']}: missing slides/{name}")
+        for vid in re.findall(r'\]\(youtube:([^)]*)\)', seg['body_text']):
+            if not re.fullmatch(r'[A-Za-z0-9_-]{6,20}', vid):
+                problems.append(f"{seg['id']}: youtube:{vid} doesn't look like a YouTube video ID")
         for n in re.findall(r'\]\(slide:(\d+)\)', seg['body_text']):
             if not 1 <= int(n) <= len(seg['slides']):
                 problems.append(f"{seg['id']}: slide:{n} but the segment has {len(seg['slides'])} slides")
@@ -114,12 +117,16 @@ def main():
     if args.publish:
         row['published_at'] = datetime.now(timezone.utc).isoformat()
     db.upsert('sessions', [row])
-    db.upsert('segments', [{
+    # Positions are unique within a session, so reordering is done in two passes: first move every
+    # segment to a temporary position (1000+), then set the real ones.
+    rows = [{
         'id': seg['id'], 'session': session['id'], 'position': seg['position'], 'title': seg['title'],
         'summary': seg['summary'], 'body': seg['body_text'],
         'slides': [f"{session['id']}/{name}" for name in seg['slides']],
         'youtube_start': seg['youtube_start'], 'youtube_end': seg['youtube_end'],
-    } for seg in manifest['segments']])
+    } for seg in manifest['segments']]
+    db.upsert('segments', [{**r, 'position': 1000 + r['position']} for r in rows])
+    db.upsert('segments', rows)
 
     ids = ','.join(seg['id'] for seg in manifest['segments'])
     db.request('DELETE', f"/rest/v1/contributions?cohort=eq.{manifest['cohort']}&segment=in.({ids})")
