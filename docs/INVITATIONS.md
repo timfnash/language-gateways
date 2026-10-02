@@ -1,41 +1,40 @@
 # Inviting people
 
-Only people in the `invitations` table can create an account. When they sign up, their profile is
-filled in from their invitation, and they can correct it on first sign-in.
+Only people with an invitation can create an account. When they sign up, their profile is filled in
+from their invitation, and they can correct it on first sign-in.
 
-**Never commit attendee lists to this repo** (it's public). Keep the CSV on your Mac.
+Everything below is on the site's **Admin** page (menu → Admin), which only admins can open.
+**Never commit attendee lists to this repo** (it's public). If you keep a CSV, keep it in `Sessions/`.
 
-## Before inviting a new church or cohort
+## Churches and cohorts
 
-In **Supabase → Table Editor**, add a row to `churches` (if it's a new church) and to `cohorts`.
-The `id` values are short lower-case codes with hyphens, used in the CSV:
+**Churches & cohorts** tab. Add a church, then a cohort (one run of the course) for it. The ID is
+suggested from the name (and the start date, for a cohort); it's what goes in the CSV's `cohort` column.
 
-| table    | id                              | other columns |
-|----------|---------------------------------|---------------|
-| churches | `freedom-church-jersey`         | name: Freedom Church Jersey |
-| cohorts  | `freedom-church-jersey-2026-09` | church: `freedom-church-jersey`, name, starts_on |
+## Inviting
 
-## Importing a CSV
+**Invitations** tab:
 
-1. Make a spreadsheet with exactly these column headings, and save it as CSV:
+- **Invite one person:** email and cohort; names and languages are optional.
+- **Paste a CSV:** first row `email,cohort,given_name,family_name,mother_tongue,other_languages`.
+  Only `email` and `cohort` are needed; the church comes from the cohort. Emails can be in any case.
+  People already invited are skipped, and any row with an unknown cohort is listed so you can fix it.
 
-   | church | cohort | email | given_name | family_name | mother_tongue | other_languages |
-   |--------|--------|-------|------------|-------------|---------------|-----------------|
-   | freedom-church-jersey | freedom-church-jersey-2026-09 | ana@example.com | Ana | Silva | Portuguese | English, French |
+The list below shows everyone invited and whether they've joined. Filter it by church, cohort, or a
+name or email.
 
-   `church`, `cohort` and `email` are required; the rest can be blank.
-   Emails can be in any case: they're stored in lower case.
-2. **Table Editor → invitations → Insert → Import data from CSV**, choose the file, check the
-   preview, and import.
+## Removing someone
 
-If a row is rejected, the usual cause is a `church`/`cohort` pair that doesn't exist, or a cohort
-that belongs to a different church.
+**Remove** on their row in the invitations list:
 
-## Adding one person
+- **Not joined yet:** removes the invitation.
+- **Joined:** permanently deletes their account, profile, notes and progress, and their invitation.
+  They can't sign in again unless you invite them again. This can't be undone.
 
-**Table Editor → invitations → Insert → Insert row**, then fill in the same fields.
+Admins can't be removed this way. To remove an admin, first take their email out of the `admins` table in
+the Supabase table editor.
 
 ## Admins
 
-Admins can see every profile and manage churches, cohorts and invitations. To add one, insert their
-email into the `admins` table (it's only editable from the dashboard).
+Admins can approve shared notes, see who wrote them, and manage churches, cohorts and invitations. To add
+one, insert their email into the `admins` table in Supabase (it's only editable there).
