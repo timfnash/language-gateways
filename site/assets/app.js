@@ -52,3 +52,41 @@ export async function nextPage(userId) {
   const { data } = await supabase.from('profiles').select('confirmed_at').eq('id', userId).single();
   return data?.confirmed_at ? 'home.html' : 'profile.html';
 }
+
+// ---------------------------------------------------------------------------
+// Course content and progress
+// ---------------------------------------------------------------------------
+
+export const MODES = { read: 'Read', watch: 'Watch', slides: 'Slides' };
+
+// All sessions the person can see, each with its segments in order, plus their progress.
+// progress is keyed by segment id: { read: {started_at, completed_at, updated_at}, watch: …, … }
+export async function loadCourse() {
+  const [{ data: sessions, error }, { data: rows }] = await Promise.all([
+    supabase.from('sessions')
+      .select('id, number, title, summary, youtube_id, published_at, segments (id, position, title, summary, slides, youtube_start, youtube_end)')
+      .order('number'),
+    supabase.from('progress').select('segment, mode, started_at, completed_at, updated_at'),
+  ]);
+  if (error) throw error;
+  for (const s of sessions) s.segments.sort((a, b) => a.position - b.position);
+  const progress = {};
+  for (const r of rows ?? []) (progress[r.segment] ??= {})[r.mode] = r;
+  return { sessions, progress, segments: sessions.flatMap(s => s.segments.map(g => ({ ...g, session: s }))) };
+}
+
+export const isComplete = modes => Object.values(modes ?? {}).some(m => m.completed_at);
+
+export function recordProgress(segment, mode, completed = false) {
+  return supabase.rpc('record_progress', { p_segment: segment, p_mode: mode, p_completed: completed });
+}
+
+// Short-lived URLs for private slide images, keyed by storage path.
+export async function signedUrls(paths) {
+  if (!paths.length) return {};
+  const { data, error } = await supabase.storage.from('course-media').createSignedUrls(paths, 60 * 60 * 4);
+  if (error) throw error;
+  return Object.fromEntries(data.filter(d => d.signedUrl).map(d => [d.path, d.signedUrl]));
+}
+
+export const formatTime = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
