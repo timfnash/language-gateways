@@ -27,12 +27,11 @@ session has its own folder under `cohorts/`.
 ```
 Sessions/fid-1/
   session.json                     the session and its parts: titles, summaries, slides, video times
-  songs.csv                        standard songs (optional: songs are usually edited on the Admin page)
   slides/                          slide-01.jpg, slide-02.jpg, … (the shared slides, in order)
   transcripts/fid-1-1.md …         the standard transcript of each part, shown under the video (Watch tab)
   cohorts/freedom-church-jersey-2026-09/
     talk/fid-1-1.md …              what was said with this cohort (Read tab)
-    songs.csv                      segment,title,translation,language,url,story (optional, as above)
+    songs.csv                      segment,title,translation,language,url,story (in the order sung)
     tables/fid-1-3-1.md …          table write-ups: <part>-<table number>.md, shown as "Table 1" …
     prayers/fid-1-6-1.md …         prayers, named the same way
     what-people-said.md            kept for the welcome page
@@ -42,14 +41,19 @@ Sessions/fid-1/
   embeds a YouTube video (the ID is the part after `v=` in its link).
 - In a talk, `<!-- songs -->` marks where the cohort's songs go and `<!-- contributions -->` where its table
   write-ups and prayers go; without the markers they follow the talk.
-- Each session's **songs part** is the first part with "song" in its title (e.g. "Songs in three languages"); keep
-  that word in its title so the Admin page puts songs there.
-- **Songs** are normally added and edited on the Admin page's **Songs** tab (see `docs/INVITATIONS.md`). A
-  `songs.csv` (one row per song: the part (`segment`), the title as sung, an English title, the language, the
-  YouTube link and, optionally, the story) can load them in bulk instead, but only with `--songs`, which replaces
-  any songs edited on the Admin page. A cohort with no songs of its own for a part sees the **standard** songs.
-- The Read tab shows a person their own cohort's talk. Other cohorts' **songs, table discussions and prayers** can
-  be seen too, under "From other groups" (My cohort / My church / All participants), within each cohort's
+- **Songs.** A cohort's songs go in its `songs.csv`, one row per song in the order sung: the part (`segment`, the
+  session's songs part, e.g. `fid-1-7`), the title as sung, an English title, the language, the YouTube link and the
+  story (what was said about it, taken from the recording). There are no standard songs: a cohort with no songs for
+  a part has none, like any other part with nothing of its own. The same generic **SONGS** slide
+  (`Sessions/shared/slide-songs.jpg`) is used for every session's songs part.
+- **Where songs show.** Each song's title, English title, language and video are on the **Watch** tab, below the
+  intro video and its transcript button. On the **Read** tab they are a bulleted list with what was said about each
+  (no videos), at the `<!-- songs -->` marker in the talk.
+- **Links are checked.** Every load looks each YouTube link up and prints the video's YouTube title next to your
+  song, so a wrong link is obvious. It stops if a video doesn't exist or can't be embedded. To check without
+  loading: `python3 pipeline/load_session.py Sessions/fid-1 --check --check-links`.
+- The Read tab shows a person their own cohort's talk, songs, table discussions and prayers. Other cohorts' **songs,
+  table discussions and prayers** can be seen too, in the same format, under "From other groups" (My cohort / My church / All participants), within each cohort's
   **sharing** setting on the Admin page.
 
 Parts can be split, added or reordered: change `session.json` (each part's `position`, slides and video times)
@@ -84,5 +88,5 @@ python3 pipeline/load_session.py Sessions/fid-1 --cohort individuals-october-202
 ```
 
 Reloading is safe: it updates the parts, replaces each loaded cohort's talks, table write-ups and prayers for the
-session, and overwrites the slides. Songs are left alone unless you add `--songs`. People's progress and notes are
+session, and overwrites the slides. People's progress and notes are
 kept.

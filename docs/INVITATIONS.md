@@ -24,13 +24,6 @@ share their notes. (What was said is only ever shown to the cohort itself.) Admi
 Each cohort has a **join link**: **Copy link** to send it to the church; **New link** replaces it (the old
 one stops working); untick **Needs approval** to let people from that link straight in.
 
-## Songs
-
-**Songs** tab: choose a cohort and a session, then add, edit, reorder (↑ ↓) or delete its songs: the title as sung,
-an English title, the language, a YouTube link and, optionally, the story behind it. They show straight away on the
-Read tab of the session's songs part (the first part with "song" in its title). A cohort with no songs of its own for a part sees the **Standard** songs, which admins edit by
-choosing "Standard" as the cohort. Church admins can edit their own church's cohorts.
-
 ## Requests to join
 
 **Requests to join** tab: **Approve** lets them in and adds them to the invitations list; **Decline**
@@ -70,8 +63,8 @@ The **shield icon** on a row shows and changes someone's role. Each click moves 
 
 - **Admins** can do everything: approve shared notes and see who wrote them, and manage churches, cohorts,
   join links, invitations, requests and people.
-- **Church admins** can approve or decline requests to join their church, see its people (read-only), edit its
-  cohorts' songs, set their sharing, and approve its members' notes for all participants (without seeing who wrote
+- **Church admins** can approve or decline requests to join their church, see its people (read-only), set its
+  cohorts' sharing, and approve its members' notes for all participants (without seeing who wrote
   them).
 
 You can't change your own role; another admin has to do it. There's always at least one admin.

@@ -174,6 +174,11 @@ footer a { color: var(--muted); }
 details.cohort-material { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0 20px; }
 details.cohort-material > summary { cursor: pointer; padding: 14px 0; font-weight: 600; color: var(--brand); list-style-position: outside; }
 details.cohort-material[open] > summary { border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.watch-songs h2 { margin-top: 28px; }
+.song-list { padding-left: 1.2rem; }
+.song-list li { margin: 0 0 14px; }
+.song-list .song-meta { margin-left: 6px; }
+.song-story p { margin: 4px 0 0; }
 .song { margin: 18px 0 28px; }
 .song h3 { margin: 0 0 6px; text-transform: none; letter-spacing: 0; font-size: 1.05rem; }
 .song h3 a { text-decoration: none; }
@@ -301,14 +306,7 @@ button.danger:hover { background: #6d150e; border-color: #6d150e; }
 button.link.danger, button.link.danger:hover { background: none; border: none; padding: 0; color: var(--error-text); }
 
 /* Admin page */
-.song-admin { list-style: none; padding: 0; margin: 0 0 20px; display: grid; gap: 10px; }
-.song-admin li { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;
-  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 12px; padding: 12px 16px; }
-.song-admin li p.meta { margin: 4px 0 0; font-size: .85rem; }
-.song-admin-actions { display: flex; gap: 12px; white-space: nowrap; }
-.song-admin-actions button.link { font-size: .9rem; text-decoration: none; }
-.song-admin-actions button.link:disabled { opacity: .3; }
-#s-form h2 { margin-top: 0; }
+
 .filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 12px; }
 .filters label { margin: 0; flex: 1 1 12rem; }
 .filters select, .filters input { margin-top: 6px; }

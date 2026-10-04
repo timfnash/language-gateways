@@ -43,10 +43,11 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   standard transcript shown under the video on the Watch tab). Each cohort's session material is its own: what was
   actually said (from audio recordings), songs (title, language, link, story), table write-ups and prayers, shown
   on the Read tab. Talks are only ever shown to the cohort itself; songs, table write-ups and prayers (and notes) can
-  be read across cohorts (My cohort default / My church / All participants). Songs are edited on the Admin page by cohort and
-  session, and go on the session's songs part (the first part with "song" in its title)
-  (admins: any cohort and the standard songs; church admins: their church's cohorts); a cohort with none of its
-  own for a part sees the standard songs. The loader only touches songs with `--songs`.
+  be read across cohorts (My cohort default / My church / All participants). Songs come only from each cohort's write-up
+  (`cohorts/<id>/songs.csv`, in the order sung, with Tim's YouTube links; there are no standard songs and no Admin
+  editor). They show on the Watch tab (title, English title, language, video, below the intro video and transcript
+  button) and on the Read tab (bulleted list with what was said, no videos, also for other cohorts' songs). The loader
+  checks each YouTube link and prints its title so a wrong link is obvious.
 - **Visibility:** notes are visible to everyone (default), my church, my cohort or only me, always without names.
   Each cohort has a sharing limit (everyone by default; admins or its church admins can narrow it to its church or
   cohort) that applies to its songs, table write-ups and prayers and caps its members' notes. Notes for everyone need approval
