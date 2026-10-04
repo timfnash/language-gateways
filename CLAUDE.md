@@ -95,5 +95,7 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   write-ups or prayers go.
 - The Session One Full Record Claude doc stores its slide images as artifact assets; they can be downloaded one at
   a time with the Artifact tool's read action and an asset id.
-- Swahili song on slide 9: the correct title is "Sifu Bwana Moyo Wangu" (confirmed by Tim). The Session One slide image still reads "Wwana".
+- Every session's songs part uses the same generic **SONGS** slide: `Sessions/shared/slide-songs.jpg` (960×540,
+  from Tim). Copy it into the session's `slides/` as that part's slide. The songs part keeps "Songs" in its title.
+- Swahili song (Session One): the correct title is "Sifu Bwana Moyo Wangu" (confirmed by Tim).
 - Style: British English. Lightly tidy speech (remove ums, false starts and repetition) without changing meaning.
