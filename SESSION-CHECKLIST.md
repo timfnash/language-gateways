@@ -28,7 +28,8 @@
    - remove hallucinated repetition
    - tidy the front talk, place the slides and add the song links
    - summarise each table's discussions, collect the prayers, pick quotes
-   - draft the segments with YouTube start and end times, as `content/` (see `docs/LOADING-SESSIONS.md`)
+   - write up what was said with this cohort, and its songs, tables and prayers, in
+     `Sessions/fid-<n>/cohorts/<cohort-id>/` (see `docs/LOADING-SESSIONS.md`)
 4. Review the draft: quotes, spellings of non-English words, and that nobody but Tim is identifiable
 5. Load it as a draft, check it on the site as an admin, then publish it to the cohort (`docs/LOADING-SESSIONS.md`)
 6. Choose any quotes or takeaways to share across all churches

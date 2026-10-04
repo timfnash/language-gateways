@@ -39,8 +39,14 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   Roles: admins (`admins`) and church admins (`church_admins`, one church each). Managed on the Admin page.
 - **Profile (for now):** given name, family name, mother tongue, other languages. Pre-filled from the
   invitation. Leave out sensitive fields (denomination, years as a Christian) until consent and privacy are designed.
-- **Visibility:** comments and notes are private, visible to my church, or visible to everyone, with an
-  anonymous option. Content shared across churches needs Tim's approval.
+- **Shared vs per-cohort:** the teaching is shared by everyone (one standard video per session, slides, and a
+  standard transcript shown under the video on the Watch tab). Each cohort's session material is its own: what was
+  actually said (from audio recordings), songs (title, language, link, story), table write-ups and prayers, shown
+  on the Read tab. Views default to the person's own cohort, with My church / All participants options.
+- **Visibility:** notes are visible to everyone (default), my church, my cohort or only me, always without names.
+  Each cohort has a sharing limit (everyone by default; admins or its church admins can narrow it to its church or
+  cohort) that applies to its session material and caps its members' notes. Notes for everyone need approval
+  (by an admin, or a church admin for their church) before other churches see them.
 - **Anonymity:** in published content, everyone except Tim F Nash is anonymous. Tables are numbered, not named.
   It's fine to say that Session One was held at Freedom Church Jersey with members of that congregation.
 - **Content model:** Course → Session → Segment (text, slide images, YouTube start/end, audio).
@@ -78,8 +84,9 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   `position` sets the order. Session One's songs and series-outline parts are `fid-1-7` and `fid-1-8` for this reason.
 - The session video is edited: the table discussions are cut out, so segments can run end to end. Tim can paste
   YouTube's transcript (with times) to set the segment boundaries.
-- Content lives in `Sessions/<folder>/content/` in this repo (git-ignored: never commit it) (session.json + one Markdown file per segment + contributions/)
-  and is loaded with `pipeline/load_session.py`; see `docs/LOADING-SESSIONS.md`. In a segment's Markdown,
+- Content lives in `Sessions/fid-<n>/` in this repo (git-ignored: never commit it): shared parts, slides and
+  transcripts at the top, each cohort's talk, songs.csv, tables and prayers under `cohorts/<cohort-id>/`.
+  Loaded with `pipeline/load_session.py`; see `docs/LOADING-SESSIONS.md`. In a segment's Markdown,
   `![caption](slide:N)` places the segment's Nth slide, `![caption](youtube:ID)` embeds a video, and `<!-- contributions -->` marks where the table
   write-ups or prayers go.
 - The Session One Full Record Claude doc stores its slide images as artifact assets; they can be downloaded one at

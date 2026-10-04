@@ -17,6 +17,10 @@ Everything below is on the site's **Admin** page (menu → Admin), which only ad
 **Churches & cohorts** tab. Add a church, then a cohort (one run of the course) for it. The ID is
 suggested from the name; a cohort's ID is what goes in the CSV's `cohort` column.
 
+Each cohort has a **sharing** setting: **All participants** (the default), **Its church** or **Its cohort**. It
+decides who can read the cohort's session material (what was said, songs, table discussions, prayers) and caps
+how far its members can share their notes. Admins and that church's church admins can change it.
+
 Each cohort has a **join link**: **Copy link** to send it to the church; **New link** replaces it (the old
 one stops working); untick **Needs approval** to let people from that link straight in.
 
@@ -59,6 +63,7 @@ The **shield icon** on a row shows and changes someone's role. Each click moves 
 
 - **Admins** can do everything: approve shared notes and see who wrote them, and manage churches, cohorts,
   join links, invitations, requests and people.
-- **Church admins** can approve or decline requests to join their church, and see its people (read-only).
+- **Church admins** can approve or decline requests to join their church, see its people (read-only), set its
+  cohorts' sharing, and approve its members' notes for all participants (without seeing who wrote them).
 
 You can't change your own role; another admin has to do it. There's always at least one admin.

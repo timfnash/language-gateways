@@ -21,49 +21,62 @@ That folder isn't backed up by GitHub, so make sure your Mac's own backup covers
 
 ## The session folder
 
+Each session has one folder. Material shared by everyone sits at the top; each cohort that has had the
+session has its own folder under `cohorts/`.
+
 ```
-Sessions/2026-09-29-freedom-church-jersey-S1/
-  slides/        slide-01.jpg, slide-02.jpg, … (every visible slide, in order)
-  content/
-    session.json         the session, its segments, video times and which slides each uses
-    fid-1-1.md …         one write-up per segment (Markdown)
-    contributions/       table write-ups and prayers; these belong to the cohort named in session.json
-    what-people-said.md  kept for the welcome page
+Sessions/fid-1/
+  session.json                     the session and its parts: titles, summaries, slides, video times
+  slides/                          slide-01.jpg, slide-02.jpg, … (the shared slides, in order)
+  transcripts/fid-1-1.md …         the standard transcript of each part, shown under the video (Watch tab)
+  cohorts/freedom-church-jersey-2026-09/
+    talk/fid-1-1.md …              what was said with this cohort (Read tab)
+    songs.csv                      segment,title,translation,language,url,story
+    tables/fid-1-3-1.md …          table write-ups: <part>-<table number>.md, shown as "Table 1" …
+    prayers/fid-1-6-1.md …         prayers, named the same way
+    what-people-said.md            kept for the welcome page
 ```
 
-In a write-up, `![caption](slide:3)` shows that segment's third slide, `![caption](youtube:VIDEO-ID)` embeds a
-YouTube video (the ID is the part after `v=` in its link), and `<!-- contributions -->` marks where the table
-write-ups (or prayers) appear. Edit the Markdown files freely and reload.
+- In a transcript or talk, `![caption](slide:3)` shows that part's third slide and `![caption](youtube:VIDEO-ID)`
+  embeds a YouTube video (the ID is the part after `v=` in its link).
+- In a talk, `<!-- songs -->` marks where the cohort's songs go and `<!-- contributions -->` where its table
+  write-ups and prayers go; without the markers they follow the talk.
+- **Songs** come from `songs.csv`, one row per song: the part (`segment`), the title as sung, an English
+  translation of the title, the language, the YouTube link and, optionally, the story behind it. Each shows as a
+  linked title with the video embedded beneath it.
+- Who can read a cohort's material is set by the cohort's **sharing** setting on the Admin page (all participants
+  by default, or its church, or just the cohort).
 
-Segments can be split, added or reordered: change `session.json` (each segment's `position`, slides and video
-times) and reload. Keep existing segments' `id`s, because people's progress and notes are stored against them;
-give new segments new ids.
+Parts can be split, added or reordered: change `session.json` (each part's `position`, slides and video times)
+and reload. Keep existing parts' `id`s, because people's progress and notes are stored against them; give new
+parts new ids.
 
 ## Loading
 
 Check the folder first (nothing is sent anywhere):
 
 ```bash
-python3 pipeline/load_session.py Sessions/2026-09-29-freedom-church-jersey-S1 --check
+python3 pipeline/load_session.py Sessions/fid-1 --check
 ```
 
 Load it. A new session starts as a **draft** that only admins can see, so you can check it on the site first;
 reloading a session that's already published keeps it published:
 
 ```bash
-python3 pipeline/load_session.py Sessions/2026-09-29-freedom-church-jersey-S1
+python3 pipeline/load_session.py Sessions/fid-1
 ```
 
 When you're happy, **publish** it to members:
 
 ```bash
-python3 pipeline/load_session.py Sessions/2026-09-29-freedom-church-jersey-S1 --publish
+python3 pipeline/load_session.py Sessions/fid-1 --publish
 ```
 
-Reloading is safe: it updates the segments, replaces that cohort's table write-ups, and overwrites the slides.
-People's progress is kept.
+To load just one cohort's material (say, after a new cohort has had the session):
 
-## Sharing a table write-up with other churches
+```bash
+python3 pipeline/load_session.py Sessions/fid-1 --cohort individuals-october-2026
+```
 
-Table write-ups and prayers are visible only to the cohort they came from. To share one with every church,
-set its `shared_with` to `everyone` in **Table Editor → contributions**.
+Reloading is safe: it updates the parts, replaces each loaded cohort's material for the session, and overwrites
+the slides. People's progress and notes are kept.

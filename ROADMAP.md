@@ -35,6 +35,10 @@ Decided with Tim (2 Oct 2026): no separate comments; notes themselves are shared
 - [x] "All participants" notes reach other churches only after admin approval; editing withdraws it
 - [x] Admin page: shared-notes approval queue; invitations (add one, paste CSV, see who has joined,
       filter by church / cohort / status / search, remove people); add churches and cohorts
+- [x] Shared teaching (standard video, slides, transcript on the Watch tab) vs per-cohort session material (what was
+      said, songs, tables, prayers on the Read tab), with My cohort / My church / All participants views
+- [x] Cohort sharing limits (admins and church admins), capping session material and notes; church admins approve notes
+- [ ] Swap in the polished standard video and its transcript when ready; a generic "Sing" slide
 - [x] Join links per cohort (churches needn't share members' details), with approval by admins or church admins;
       roles cycle none → church admin → admin
 

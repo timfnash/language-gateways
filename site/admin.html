@@ -16,9 +16,9 @@
 
     <div class="tabs ui" role="tablist">
       <button role="tab" id="tab-requests" aria-selected="true" aria-controls="panel-requests">Requests to join</button>
-      <button role="tab" id="tab-notes" aria-selected="false" aria-controls="panel-notes" data-admin-only>Shared notes</button>
+      <button role="tab" id="tab-notes" aria-selected="false" aria-controls="panel-notes">Shared notes</button>
       <button role="tab" id="tab-invites" aria-selected="false" aria-controls="panel-invites">Invitations</button>
-      <button role="tab" id="tab-groups" aria-selected="false" aria-controls="panel-groups" data-admin-only>Churches &amp; cohorts</button>
+      <button role="tab" id="tab-groups" aria-selected="false" aria-controls="panel-groups">Churches &amp; cohorts</button>
     </div>
 
     <section id="panel-requests" role="tabpanel" class="ui">
@@ -88,8 +88,10 @@
     </section>
 
     <section id="panel-groups" role="tabpanel" class="ui" hidden>
+      <p class="lead">Each cohort’s <strong>sharing</strong> setting decides who can read its session material (what was said,
+        songs, table discussions and prayers), and how far its members can share their notes.</p>
       <div id="groups"></div>
-      <div class="admin-grid">
+      <div class="admin-grid" data-admin-only>
         <form class="card" id="add-church">
           <h2>Add a church</h2>
           <label for="c-name">Name</label>
@@ -179,8 +181,8 @@
         }
       });
       if (location.hash === '#invitations') tabs.invites.click();
-      if (location.hash === '#cohorts' && isAdmin) tabs.groups.click();
-      if (location.hash === '#notes' && isAdmin) tabs.notes.click();
+      if (location.hash === '#cohorts') tabs.groups.click();
+      if (location.hash === '#notes') tabs.notes.click();
 
       // ---- Requests to join -----------------------------------------------------
       async function loadRequests() {
@@ -226,7 +228,7 @@
           <li class="${waiting(n) ? 'waiting' : ''}">
             <p class="meta"><strong>${esc(n.segment_title)}</strong> · ${LABEL[n.visibility]}${n.visibility === 'everyone' ? (n.approved_at ? ' · approved' : ' · <strong>awaiting approval</strong>') : ''}</p>
             <p>${esc(n.body).replace(/\n/g, '<br>')}</p>
-            <p class="meta">${esc(n.author || 'No name')} &lt;${esc(n.email)}&gt; · ${esc(n.church)}, ${esc(n.cohort)} · ${when(n.updated_at)}</p>
+            <p class="meta">${n.email ? `${esc(n.author || 'No name')} &lt;${esc(n.email)}&gt;` : 'Name hidden'} · ${esc(n.church)} · ${esc(n.cohort)} · ${when(n.updated_at)}</p>
             ${n.visibility === 'everyone' ? `<button type="button" class="${n.approved_at ? 'secondary' : ''}" data-id="${n.id}" data-approve="${!n.approved_at}">
               ${n.approved_at ? 'Withdraw approval' : 'Approve for all churches'}</button>` : ''}
           </li>`).join('')
@@ -240,7 +242,7 @@
         if (error) { tell(error.message); b.disabled = false; return; }
         loadNotes();
       });
-      if (isAdmin) loadNotes();
+      loadNotes();
 
       // ---- Invitations, churches and cohorts -----------------------------------
       let churches = [], cohorts = [], invites = [], joined = new Set(), unconfirmed = new Set(), roles = new Map();
@@ -252,7 +254,7 @@
       async function loadAll() {
         const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: roleList }, { data: unconf }] = await Promise.all([
           supabase.from('churches').select('id, name').order('name'),
-          supabase.from('cohorts').select('id, church, name, join_code, join_requires_approval').order('created_at', { ascending: false }),
+          supabase.from('cohorts').select('id, church, name, join_code, join_requires_approval, share_limit').order('created_at', { ascending: false }),
           supabase.from('invitations').select('*').order('created_at', { ascending: false }),
           supabase.from('profiles').select('email').eq('status', 'active'),
           isAdmin ? supabase.rpc('admin_list_roles') : Promise.resolve({ data: [] }),
@@ -360,13 +362,17 @@
         $('groups').innerHTML = churches.map(ch => {
           const cs = cohorts.filter(c => c.church === ch.id);
           return `<section class="card group"><h2>${esc(ch.name)}</h2><p class="meta">ID: <code>${esc(ch.id)}</code></p>
-            ${cs.length ? `<div class="table-wrap"><table class="invites"><thead><tr><th>Cohort</th><th>ID</th><th>Invited</th><th>Joined</th><th>Join link</th></tr></thead><tbody>
+            ${cs.length ? `<div class="table-wrap"><table class="invites"><thead><tr><th>Cohort</th><th>ID</th><th>Invited</th><th>Joined</th><th>Sharing</th><th>Join link</th></tr></thead><tbody>
               ${cs.map(c => `<tr><td>${esc(c.name)}</td><td><code>${esc(c.id)}</code></td>
                 <td>${count({ key: 'cohort', id: c.id }, () => true)}</td><td>${count({ key: 'cohort', id: c.id }, i => joined.has(i.email))}</td>
+                <td><select class="share-limit" data-share="${esc(c.id)}" aria-label="Sharing for ${esc(c.name)}">
+                  ${[['everyone', 'All participants'], ['church', 'Its church'], ['cohort', 'Its cohort']].map(([v, l]) =>
+                    `<option value="${v}"${c.share_limit === v ? ' selected' : ''}>${l}</option>`).join('')}
+                </select></td>
                 <td class="join-link">
-                  <button type="button" class="link" data-copy="${esc(c.id)}">Copy link</button> ·
+                  <button type="button" class="link" data-copy="${esc(c.id)}">Copy link</button>${isAdmin ? ` ·
                   <button type="button" class="link" data-new-code="${esc(c.id)}">New link</button>
-                  <label class="approval"><input type="checkbox" data-approval="${esc(c.id)}"${c.join_requires_approval ? ' checked' : ''}> Needs approval</label>
+                  <label class="approval"><input type="checkbox" data-approval="${esc(c.id)}"${c.join_requires_approval ? ' checked' : ''}> Needs approval</label>` : ''}
                 </td></tr>`).join('')}
               </tbody></table></div>` : '<p class="meta">No cohorts yet.</p>'}
           </section>`;
@@ -392,6 +398,16 @@
         }
       });
       $('groups').addEventListener('change', async e => {
+        const limit = e.target.closest('select[data-share]');
+        if (limit) {
+          const c = cohorts.find(c => c.id === limit.dataset.share), label = limit.selectedOptions[0].textContent.toLowerCase();
+          const ok = await ask(`Change sharing for ${c.name} to “${label}”?\n\nThis decides who can read the cohort’s session material, and how far its members can share their notes. Notes already shared more widely will be narrowed to this.`, { ok: 'Change sharing' });
+          if (!ok) { limit.value = c.share_limit; return; }
+          const { error } = await supabase.rpc('set_cohort_share_limit', { p_cohort: c.id, p_limit: limit.value });
+          if (error) { limit.value = c.share_limit; return tell(error.message); }
+          c.share_limit = limit.value;
+          return;
+        }
         const box = e.target.closest('input[data-approval]');
         if (!box) return;
         const { error } = await supabase.from('cohorts').update({ join_requires_approval: box.checked }).eq('id', box.dataset.approval);

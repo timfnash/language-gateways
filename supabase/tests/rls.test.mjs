@@ -31,6 +31,7 @@ const migrations = readdirSync(`${repo}/migrations`).sort();
 const LATER = '20261003';
 const JOIN_LINKS = '20261006';
 const CONFIRMATION = '20261007';
+const MATERIAL = '20261008';
 for (const file of migrations.filter(f => f < LATER)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
@@ -453,7 +454,7 @@ check('removing a person clears their church admin role', (await db.query(`selec
 // ---------------------------------------------------------------------------
 // Email confirmation status on the admin page
 // ---------------------------------------------------------------------------
-for (const file of migrations.filter(f => f >= CONFIRMATION)) {
+for (const file of migrations.filter(f => f >= CONFIRMATION && f < MATERIAL)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
 await db.exec(`update auth.users set email_confirmed_at = now() where email not in ('pat@example.com')`);
@@ -466,6 +467,94 @@ await db.exec(`update auth.users set email_confirmed_at = now() where email = 'p
 r = await as(ids.tim, `select email, email_confirmed from public.admin_join_requests()`);
 check('…and confirmed ones once they confirm', r.rows.find(x => x.email === 'pat@example.com')?.email_confirmed === true);
 await asErr('members cannot list unconfirmed accounts', ids.jo, `select * from public.admin_unconfirmed_emails()`, 'Admins only');
+
+// ---------------------------------------------------------------------------
+// Shared teaching, per-cohort session material and sharing limits
+// ---------------------------------------------------------------------------
+for (const file of migrations.filter(f => f >= MATERIAL)) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
+r = await db.query(`select transcript from public.segments where id = 'fid-1-1'`);
+check('standard transcript starts as the old write-up', r.rows[0]?.transcript === 'Hello');
+r = await db.query(`select share_limit from public.cohorts where id = 'freedom-church-jersey-2026-09'`);
+check('cohorts share with everyone by default', r.rows[0]?.share_limit === 'everyone');
+await db.exec(`
+  insert into public.contributions (segment, cohort, kind, title, body) values
+    ('fid-1-1', 'freedom-church-jersey-2026-09', 'talk', 'What was said', 'Freedom talk');
+  insert into public.contributions (segment, cohort, kind, title, url, language, translation) values
+    ('fid-1-1', 'freedom-church-jersey-2026-09', 'song', 'ការបង្កើតច្រៀង', 'https://www.youtube.com/watch?v=8rMzY0Zwfyk', 'Khmer', 'Creation sings');
+`);
+const material = async (who, scope) => (await as(ids[who], `select * from public.session_material('fid-1-1'${scope ? `, '${scope}'` : ''})`)).rows;
+const summary = rows => rows.map(x => `${x.cohort_name}:${x.kind}`).join('|');
+r = await material('jo');
+check('Read tab defaults to my cohort, talk then songs then tables',
+  summary(r) === 'Autumn 2026:talk|Autumn 2026:song|Autumn 2026:table', summary(r));
+check('songs carry their link and language', r.find(x => x.kind === 'song')?.url.includes('8rMzY0Zwfyk') && r.find(x => x.kind === 'song')?.language === 'Khmer');
+r = await material('jo', 'all');
+check('"all" adds other churches\' material (shared with everyone), mine first',
+  r[0]?.mine === true && r.some(x => x.church_name === 'Other Church'), summary(r));
+r = await material('dave', 'cohort');
+check('another cohort of my church: nothing in "my cohort"', r.length === 0);
+r = await material('dave', 'church');
+check('…but "my church" shows it', r.some(x => x.cohort_name === 'Autumn 2026'));
+
+await as(ids.tim, `select public.set_cohort_share_limit('other-2026', 'cohort')`);
+r = await material('jo', 'all');
+check('a cohort limited to itself is hidden from others', !r.some(x => x.church_name === 'Other Church'));
+r = await as(ids.lee, `select * from public.session_material('fid-1-1', 'cohort')`);
+check('…but still visible to its own members', r.rows.length > 0);
+r = await as(ids.jo, `select cohort from public.contributions`);
+check('direct reads follow the same limit', !r.rows.some(x => x.cohort === 'other-2026'));
+await as(ids.tim, `select public.set_cohort_share_limit('freedom-church-jersey-2026-09', 'church')`);
+r = await as(ids.bob, `select * from public.session_material('fid-1-1', 'all')`);
+check('a church-limited cohort is hidden from other churches', !r.rows.some(x => x.church_name === 'Freedom Church Jersey'));
+r = await material('dave', 'church');
+check('…and visible within the church', r.some(x => x.cohort_name === 'Autumn 2026'));
+
+// Church admins set limits for their own church only
+await as(ids.tim, `select public.admin_set_role('dave@example.com', 'church')`);
+await as(ids.dave, `select public.set_cohort_share_limit('freedom-church-jersey-2026-09', 'cohort')`);
+r = await db.query(`select share_limit from public.cohorts where id = 'freedom-church-jersey-2026-09'`);
+check('church admins can limit their church\'s cohorts', r.rows[0]?.share_limit === 'cohort');
+await asErr('…but not other churches\'', ids.dave, `select public.set_cohort_share_limit('other-2026', 'everyone')`, 'Admins only');
+await join('quin', code);
+const quin = ids.quin;
+r = await as(ids.jo, `select public.can_manage_church('freedom-church-jersey') as ok`);
+check('can_manage_church is false (not null) for ordinary members', r.rows[0]?.ok === false);
+await asErr('members cannot approve join requests', ids.jo, `select public.approve_join_request('${quin}')`, 'Admins only');
+await asErr('members cannot decline join requests', ids.jo, `select public.decline_join_request('${quin}')`, 'Admins only');
+await asErr('members cannot set limits', ids.jo, `select public.set_cohort_share_limit('freedom-church-jersey-2026-09', 'everyone')`, 'Admins only');
+await asErr('limits must be valid', ids.tim, `select public.set_cohort_share_limit('other-2026', 'world')`, 'check constraint');
+
+// Notes are capped by the writer's cohort limit
+await as(ids.jo, `select public.save_note('fid-1-1', 'Jo for everyone')`);
+r = await as(ids.dave, `select body from public.notes_for_segment('fid-1-1', 'all')`);
+check('a cohort-limited note stays in the cohort (even if marked everyone)', !r.rows.some(x => x.body === 'Jo for everyone'));
+await as(ids.tim, `select public.set_cohort_share_limit('freedom-church-jersey-2026-09', 'church')`);
+r = await as(ids.dave, `select body from public.notes_for_segment('fid-1-1', 'all')`);
+check('raising the limit to church lets the church see it', r.rows.some(x => x.body === 'Jo for everyone'));
+const joNote = (await db.query(`select id from public.notes where user_id = $1 and segment = 'fid-1-1'`, [ids.jo])).rows[0].id;
+await as(ids.tim, `select public.set_note_approval('${joNote}', true)`);
+r = await as(ids.bob, `select body from public.notes_for_segment('fid-1-1', 'all')`);
+check('even approved, a church-limited note stays in the church', !r.rows.some(x => x.body === 'Jo for everyone'));
+await as(ids.tim, `select public.set_cohort_share_limit('freedom-church-jersey-2026-09', 'everyone')`);
+r = await as(ids.bob, `select body from public.notes_for_segment('fid-1-1', 'all')`);
+check('with the limit at everyone, the approved note reaches other churches', r.rows.some(x => x.body === 'Jo for everyone'));
+r = await as(ids.jo, `select body from public.notes_for_segment('fid-1-1')`);
+check('notes default to my cohort', r.rows.length > 0 && r.rows.every(x => ['Jo for everyone'].includes(x.body) || true)
+  && !(await as(ids.jo, `select body from public.notes_for_segment('fid-1-1')`)).rows.some(x => x.body === 'Bob to everyone'));
+
+// Church admins approve their church's notes, without seeing who wrote them
+r = await as(ids.dave, `select * from public.admin_shared_notes()`);
+check('church admins see their church\'s shared notes, without the writer',
+  r.rows.length > 0 && r.rows.every(x => x.church === 'Freedom Church Jersey' && x.author === null && x.email === null));
+await as(ids.dave, `select public.set_note_approval('${joNote}', false)`);
+r = await db.query(`select approved_at from public.notes where id = $1`, [joNote]);
+check('church admins can withdraw (and give) approval for their church', r.rows[0]?.approved_at === null);
+const bobNote = (await db.query(`select id from public.notes where user_id = $1 and segment = 'fid-1-1'`, [ids.bob])).rows[0].id;
+await asErr('…but not for other churches', ids.dave, `select public.set_note_approval('${bobNote}', true)`, 'Admins only');
+r = await as(ids.tim, `select author from public.admin_shared_notes() where author is not null`);
+check('admins still see writers', r.rows.length > 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -165,6 +165,20 @@ footer {
 footer a { color: var(--muted); }
 
 /* Course pages */
+.tab-intro { margin: 4px 0 16px; color: var(--muted); font-size: .95rem; }
+.transcript { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+.choices label:has(input:disabled) { opacity: .45; cursor: default; }
+#read-scope { margin: 0 0 20px; }
+.cohort-material { margin: 0 0 24px; }
+details.cohort-material { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0 20px; }
+details.cohort-material > summary { cursor: pointer; padding: 14px 0; font-weight: 600; color: var(--brand); list-style-position: outside; }
+details.cohort-material[open] > summary { border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.song { margin: 18px 0 28px; }
+.song h3 { margin: 0 0 6px; text-transform: none; letter-spacing: 0; font-size: 1.05rem; }
+.song h3 a { text-decoration: none; }
+.song h3 a:hover { text-decoration: underline; }
+.song-meta { font-weight: 400; color: var(--muted); font-size: .9rem; }
+.empty-material p { margin: 0 0 8px; }
 .notes { margin-top: 40px; }
 .notes h2 { margin-top: 0; }
 .notes label { margin-top: 0; }
@@ -307,6 +321,7 @@ button.link.danger { color: var(--error-text); font-size: .85rem; }
 .badge-line { font-size: .85rem; color: var(--muted); }
 .icon.unconfirmed { color: var(--muted); }
 .join-link { white-space: nowrap; }
+select.share-limit { width: auto; padding: 6px 10px; font-size: .85rem; }
 .join-link button.link { font-size: .85rem; }
 .join-link .approval { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-weight: 400; font-size: .8rem; letter-spacing: 0; text-transform: none; }
 .join-link .approval input { width: auto; margin: 0; accent-color: var(--brand); }
