@@ -18,7 +18,6 @@
       <button role="tab" id="tab-requests" aria-selected="true" aria-controls="panel-requests">Requests to join</button>
       <button role="tab" id="tab-notes" aria-selected="false" aria-controls="panel-notes">Shared notes</button>
       <button role="tab" id="tab-invites" aria-selected="false" aria-controls="panel-invites">Invitations</button>
-      <button role="tab" id="tab-songs" aria-selected="false" aria-controls="panel-songs">Songs</button>
       <button role="tab" id="tab-groups" aria-selected="false" aria-controls="panel-groups">Churches &amp; cohorts</button>
     </div>
 
@@ -86,35 +85,6 @@
       <p class="meta" id="invite-count"></p>
       <div class="table-wrap"><table class="invites" id="invites"></table></div>
       <p class="message" id="remove-message" hidden></p>
-    </section>
-
-    <section id="panel-songs" role="tabpanel" class="ui" hidden>
-      <p class="lead">Each session’s songs appear on the Read tab of its songs part, each as a linked title with its video.
-        Each cohort can have its own; a cohort with none sees the <strong>standard</strong> songs. Changes show straight away.</p>
-      <div class="filters">
-        <label>Cohort <select id="s-cohort"></select></label>
-        <label>Session <select id="s-part"></select></label>
-      </div>
-      <p class="meta" id="s-note"></p>
-      <ol class="song-admin" id="s-list"></ol>
-      <form class="card" id="s-form">
-        <h2 id="s-form-title">Add a song</h2>
-        <label for="s-title">Title <span class="hint">(as sung, e.g. 云上太阳)</span></label>
-        <input id="s-title" required>
-        <label for="s-translation">English title <span class="hint">(optional)</span></label>
-        <input id="s-translation" placeholder="e.g. Sun above the clouds">
-        <label for="s-language">Language</label>
-        <input id="s-language" placeholder="e.g. Mandarin Chinese">
-        <label for="s-url">YouTube link</label>
-        <input id="s-url" type="url" required placeholder="https://www.youtube.com/watch?v=…">
-        <label for="s-story">The story behind it <span class="hint">(optional)</span></label>
-        <textarea id="s-story" rows="4"></textarea>
-        <div class="ask-buttons">
-          <button type="button" class="secondary" id="s-cancel" hidden>Cancel</button>
-          <button type="submit" id="s-save">Add song</button>
-        </div>
-        <p class="message" id="s-message" hidden></p>
-      </form>
     </section>
 
     <section id="panel-groups" role="tabpanel" class="ui" hidden>
@@ -204,7 +174,7 @@
         $('people-heading').textContent = 'People in your church';
       }
       // Tabs
-      const tabs = { requests: $('tab-requests'), notes: $('tab-notes'), invites: $('tab-invites'), songs: $('tab-songs'), groups: $('tab-groups') };
+      const tabs = { requests: $('tab-requests'), notes: $('tab-notes'), invites: $('tab-invites'), groups: $('tab-groups') };
       for (const [name, tab] of Object.entries(tabs)) tab.addEventListener('click', () => {
         for (const [n, t] of Object.entries(tabs)) {
           t.setAttribute('aria-selected', String(n === name));
@@ -213,7 +183,6 @@
       });
       if (location.hash === '#invitations') tabs.invites.click();
       if (location.hash === '#cohorts') tabs.groups.click();
-      if (location.hash === '#songs') tabs.songs.click();
       if (location.hash === '#notes') tabs.notes.click();
 
       // ---- Requests to join -----------------------------------------------------
@@ -555,130 +524,7 @@
         loadAll();
       });
 
-      loadAll().then(() => { loadRequests(); setupSongs(); });
-
-      // ---- Songs -----------------------------------------------------------------
-      // A cohort's songs are contributions (kind 'song'); the standard songs live on the part itself.
-      const STANDARD = '__standard';
-      let parts = [], songs = [], editing = null;
-      const YT = /(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,20})/;
-
-      // Songs belong to a session's songs part: the first part with "song" in its title (or else its first part).
-      async function setupSongs() {
-        const { data: sessions } = await supabase.from('sessions')
-          .select('id, number, title, segments (id, position, title, songs)').order('number');
-        parts = (sessions ?? []).map(se => {
-          const segs = se.segments.sort((a, b) => a.position - b.position);
-          const i = Math.max(0, segs.findIndex(g => /song/i.test(g.title)));
-          return segs.length ? { ...segs[i], label: `Session ${se.number}: ${se.title}`,
-                                 where: `${i + 1}/${segs.length} ${segs[i].title}` } : null;
-        }).filter(Boolean);
-        $('s-cohort').innerHTML = (isAdmin ? `<option value="${STANDARD}">Standard (for cohorts with none of their own)</option>` : '')
-          + options(cohorts, cohortLabel);
-        $('s-part').innerHTML = parts.map(g => `<option value="${esc(g.id)}">${esc(g.label)}</option>`).join('');
-        // Open on the latest session.
-        if (parts.length) $('s-part').value = parts[parts.length - 1].id;
-        $('s-cohort').addEventListener('change', loadSongs);
-        $('s-part').addEventListener('change', loadSongs);
-        loadSongs();
-      }
-
-      const part = () => parts.find(g => g.id === $('s-part').value);
-      const isStandard = () => $('s-cohort').value === STANDARD;
-
-      async function loadSongs() {
-        resetForm();
-        if (!part()) { $('s-list').innerHTML = ''; $('s-note').textContent = 'There are no sessions yet.'; return; }
-        if (isStandard()) {
-          songs = (part().songs ?? []).map((x, i) => ({ ...x, id: String(i), body: x.story ?? '' }));
-        } else {
-          const { data, error } = await supabase.from('contributions')
-            .select('id, position, title, translation, language, url, body')
-            .eq('segment', part().id).eq('cohort', $('s-cohort').value).eq('kind', 'song').order('position');
-          if (error) return showMessage($('s-message'), error.message);
-          songs = data ?? [];
-        }
-        const standardCount = part().songs?.length ?? 0;
-        $('s-note').textContent = `Shown on part ${part().where}. ` + (isStandard()
-          ? 'These are seen by any cohort that has no songs of its own for this session.'
-          : songs.length ? '' : `This cohort has no songs of its own for this session, so it sees the standard songs (${standardCount}).`);
-        $('s-list').innerHTML = songs.map((x, i) => `<li>
-            <div class="song-admin-text"><a href="${esc(x.url)}" target="_blank" rel="noopener"><strong>${esc(x.title)}</strong></a>
-              ${[x.translation && `(${esc(x.translation)})`, esc(x.language)].filter(Boolean).join(' · ')}
-              ${x.body ? `<p class="meta">${esc(x.body.length > 140 ? x.body.slice(0, 140) + '…' : x.body)}</p>` : ''}</div>
-            <div class="song-admin-actions">
-              <button type="button" class="link" data-move="${i}" data-by="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
-              <button type="button" class="link" data-move="${i}" data-by="1" ${i === songs.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
-              <button type="button" class="link" data-edit="${i}">Edit</button>
-              <button type="button" class="link danger" data-delete="${i}">Delete</button>
-            </div></li>`).join('');
-      }
-
-      // Standard songs are saved as the whole list on the part.
-      async function saveStandard(list) {
-        const clean = list.map(({ title, translation, language, url, body }) => ({ title, translation, language, url, story: body }));
-        const { error } = await supabase.from('segments').update({ songs: clean }).eq('id', part().id);
-        if (error) { showMessage($('s-message'), error.message); return false; }
-        part().songs = clean;
-        return true;
-      }
-
-      function resetForm() {
-        editing = null;
-        $('s-form').reset();
-        $('s-form-title').textContent = 'Add a song';
-        $('s-save').textContent = 'Add song';
-        $('s-cancel').hidden = true;
-      }
-      $('s-cancel').addEventListener('click', resetForm);
-
-      $('s-list').addEventListener('click', async e => {
-        const move = e.target.closest('button[data-move]'), edit = e.target.closest('button[data-edit]'), del = e.target.closest('button[data-delete]');
-        if (edit) {
-          editing = songs[+edit.dataset.edit];
-          for (const [f, k] of [['s-title', 'title'], ['s-translation', 'translation'], ['s-language', 'language'], ['s-url', 'url'], ['s-story', 'body']])
-            $(f).value = editing[k] ?? '';
-          $('s-form-title').textContent = 'Edit song';
-          $('s-save').textContent = 'Save changes';
-          $('s-cancel').hidden = false;
-          $('s-form').scrollIntoView({ behavior: 'smooth' });
-        }
-        if (move) {
-          const i = +move.dataset.move, j = i + +move.dataset.by, list = [...songs];
-          [list[i], list[j]] = [list[j], list[i]];
-          if (isStandard()) { if (await saveStandard(list)) loadSongs(); return; }
-          await Promise.all(list.map((x, n) => supabase.from('contributions').update({ position: n + 1 }).eq('id', x.id)));
-          loadSongs();
-        }
-        if (del) {
-          const x = songs[+del.dataset.delete];
-          if (!await ask(`Delete “${x.title}”?\n\nIt will disappear from this part’s Read tab.`, { ok: 'Delete', danger: true })) return;
-          if (isStandard()) { if (await saveStandard(songs.filter(y => y !== x))) loadSongs(); return; }
-          const { error } = await supabase.from('contributions').delete().eq('id', x.id);
-          if (error) return showMessage($('s-message'), error.message);
-          loadSongs();
-        }
-      });
-
-      $('s-form').addEventListener('submit', async e => {
-        e.preventDefault();
-        const song = { title: $('s-title').value.trim(), translation: $('s-translation').value.trim() || null,
-                       language: $('s-language').value.trim() || null, url: $('s-url').value.trim(), body: $('s-story').value.trim() };
-        if (!YT.test(song.url)) return showMessage($('s-message'), 'Please use a YouTube link, so the video can be shown with the song.');
-        let error;
-        if (isStandard()) {
-          const list = editing ? songs.map(x => x === editing ? { ...x, ...song } : x) : [...songs, song];
-          if (!await saveStandard(list)) return;
-        } else if (editing) {
-          ({ error } = await supabase.from('contributions').update(song).eq('id', editing.id));
-        } else {
-          ({ error } = await supabase.from('contributions').insert({ ...song, segment: part().id, cohort: $('s-cohort').value,
-            kind: 'song', position: songs.length + 1 }));
-        }
-        if (error) return showMessage($('s-message'), error.message);
-        showMessage($('s-message'), editing ? 'Saved.' : `Added “${song.title}”.`, 'ok');
-        loadSongs();
-      });
+      loadAll().then(loadRequests);
     }
   </script>
   <script type="module" src="assets/header.js"></script>

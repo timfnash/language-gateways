@@ -5,21 +5,19 @@
     python3 pipeline/load_session.py Sessions/fid-1 --publish    # load and publish to members
     python3 pipeline/load_session.py Sessions/fid-1 --cohort freedom-church-jersey-2026-09
                                                                  # load just that cohort's material
-    python3 pipeline/load_session.py Sessions/fid-1 --songs      # also (re)load songs from the songs.csv files
+    python3 pipeline/load_session.py Sessions/fid-1 --check-links   # also check each song's YouTube link (needs internet)
 
-Songs are normally edited on the Admin page, so a reload leaves them alone; --songs replaces the songs of each
-loaded cohort (and the standard songs) with the contents of the songs.csv files.
+Every load checks the songs' YouTube links first (and stops if one is wrong), printing each video's YouTube title
+so you can see it's the right song.
 
 Folder layout (see docs/LOADING-SESSIONS.md):
 
     session.json                 the session and its parts: titles, slides, video times, transcript files
-    songs.csv                    standard songs (segment,title,translation,language,url,story), used by any
-                                 cohort that has no songs of its own for that part
     slides/                      slide-01.jpg …
     transcripts/<part>.md        the standard transcript of each part (Watch tab)
     cohorts/<cohort-id>/         one folder per cohort that has had this session (Read tab):
       talk/<part>.md             what was said with this cohort
-      songs.csv                  segment,title,translation,language,url,story
+      songs.csv                  segment,title,translation,language,url,story (in the order sung)
       tables/<part>-<n>.md       table write-ups ("Table n")
       prayers/<part>-<n>.md      prayers ("Table n")
 
@@ -30,7 +28,7 @@ Needs SUPABASE_URL and SUPABASE_SECRET_KEY (Project Settings → API Keys → se
 environment or in a .env file at the repo root. The secret key bypasses row-level security:
 never commit it or put it in the site.
 """
-import argparse, csv, json, os, re, ssl, sys, urllib.error, urllib.request
+import argparse, csv, json, os, re, ssl, sys, urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,6 +48,43 @@ def load_env():
             if m and m.group(1) not in env:
                 env[m.group(1)] = m.group(2).strip('\'"')
     return env
+
+
+def youtube_id(url):
+    m = YOUTUBE.search(url or '')
+    return m.group(1) if m else None
+
+
+OEMBED_PROBLEMS = {
+    400: "YouTube doesn't recognise this as a video",
+    401: "the owner doesn't allow it to be embedded, so it won't play on the site",
+    403: "the video is private or restricted",
+    404: "the video wasn't found (removed or private)",
+}
+
+
+def verify_links(cohorts):
+    """Look each song up on YouTube. Prints its YouTube title; returns (problems, couldn't-check count)."""
+    problems, unchecked = [], 0
+    for cohort, items in cohorts.items():
+        for item in items:
+            if item['kind'] != 'song':
+                continue
+            vid = youtube_id(item['url'])
+            link = urllib.parse.quote(f'https://www.youtube.com/watch?v={vid}', safe='')
+            req = urllib.request.Request(f'https://www.youtube.com/oembed?url={link}&format=json')
+            try:
+                with urllib.request.urlopen(req, context=SSL, timeout=15) as r:
+                    info = json.loads(r.read().decode())
+                print(f"  {item['title']}  →  YouTube: \"{info.get('title')}\" ({info.get('author_name')})  ✓ plays on this site")
+            except urllib.error.HTTPError as e:
+                why = OEMBED_PROBLEMS.get(e.code, f'YouTube answered {e.code}')
+                print(f"  {item['title']}  →  ✗ {why}")
+                problems.append(f"{cohort}: {item['title']}: {item['url']}: {why}")
+            except Exception as e:
+                print(f"  {item['title']}  →  (couldn't reach YouTube to check: {e})")
+                unchecked += 1
+    return problems, unchecked
 
 
 YOUTUBE = re.compile(r'(?:youtube\.com/watch\?(?:.*&)?v=|youtu\.be/|youtube\.com/embed/)([A-Za-z0-9_-]{6,20})')
@@ -95,10 +130,9 @@ def read_folder(folder):
                 problems.append(f"{seg['id']}: missing slides/{name}")
         check_markdown(seg['transcript'], seg['transcript_text'], len(seg['slides']), problems)
 
-    # Standard songs, shown to cohorts that have none of their own for a part.
-    standard = read_songs(folder / 'songs.csv', parts, problems) if (folder / 'songs.csv').exists() else {}
-    for seg in manifest['segments']:
-        seg['songs'] = standard.get(seg['id'], [])
+    if (folder / 'songs.csv').exists():
+        problems.append("songs.csv at the top of the session folder is no longer used (there are no standard songs): "
+                        "put each cohort's songs in cohorts/<cohort-id>/songs.csv")
 
     cohorts = {}
     for cdir in sorted((folder / 'cohorts').glob('*/')) if (folder / 'cohorts').exists() else []:
@@ -157,7 +191,7 @@ def main():
     ap.add_argument('--check', action='store_true', help='validate the folder without loading anything')
     ap.add_argument('--publish', action='store_true', help='make the session visible to members')
     ap.add_argument('--cohort', help="load only this cohort's material (not the shared parts)")
-    ap.add_argument('--songs', action='store_true', help='also replace songs with the songs.csv files (overwrites Admin edits)')
+    ap.add_argument('--check-links', action='store_true', help="with --check: also look up each song's YouTube link")
     args = ap.parse_args()
 
     folder = args.folder.expanduser()
@@ -167,14 +201,21 @@ def main():
         problems.append(f"no folder cohorts/{args.cohort}")
     for seg in manifest['segments']:
         print(f"{seg['position']}. {seg['id']}  {seg['title']}: {len(seg['slides'])} slides, "
-              f"{len(seg['transcript_text'].split())}-word transcript"
-              + (f", {len(seg['songs'])} standard songs" if seg['songs'] else ''))
+              f"{len(seg['transcript_text'].split())}-word transcript")
     for cohort, items in cohorts.items():
         counts = {k: sum(1 for i in items if i['kind'] == k) for k in ('talk', 'song', 'table', 'prayers')}
         print(f"cohort {cohort}: {counts['talk']} talks, {counts['song']} songs, {counts['table']} table write-ups, "
               f"{counts['prayers']} prayers")
     if problems:
         sys.exit('Problems:\n  ' + '\n  '.join(problems))
+    if not args.check or args.check_links:
+        if any(i['kind'] == 'song' for items in cohorts.values() for i in items):
+            print('Checking song links on YouTube:')
+            bad, unchecked = verify_links(cohorts)
+            if bad:
+                sys.exit('Problems with song links:\n  ' + '\n  '.join(bad))
+            if unchecked:
+                print(f"  ({unchecked} link(s) couldn't be checked: no connection to YouTube. Carrying on.)")
     if args.check:
         print('OK: nothing loaded (--check).')
         return
@@ -201,7 +242,6 @@ def main():
         rows = [{
             'id': seg['id'], 'session': session['id'], 'position': seg['position'], 'title': seg['title'],
             'summary': seg['summary'], 'transcript': seg['transcript_text'], 'body': seg['transcript_text'],
-            **({'songs': seg['songs']} if args.songs else {}),
             'slides': [f"{session['id']}/{name}" for name in seg['slides']],
             'youtube_start': seg['youtube_start'], 'youtube_end': seg['youtube_end'],
         } for seg in manifest['segments']]
@@ -213,11 +253,8 @@ def main():
     for cohort, items in cohorts.items():
         if args.cohort and cohort != args.cohort:
             continue
-        # Songs are edited on the Admin page; only --songs replaces them.
-        kinds = 'talk,song,table,prayers' if args.songs else 'talk,table,prayers'
-        db.request('DELETE', f"/rest/v1/contributions?cohort=eq.{cohort}&segment=in.({ids})&kind=in.({kinds})")
-        rows = [{'cohort': cohort, 'url': None, 'language': None, 'translation': None, **i}
-                for i in items if args.songs or i['kind'] != 'song']
+        db.request('DELETE', f"/rest/v1/contributions?cohort=eq.{cohort}&segment=in.({ids})")
+        rows = [{'cohort': cohort, 'url': None, 'language': None, 'translation': None, **i} for i in items]
         if rows:
             db.request('POST', '/rest/v1/contributions', rows, {'Prefer': 'return=minimal'})
         loaded += len(rows)
@@ -228,8 +265,7 @@ def main():
         published = db.request('GET', f"/rest/v1/sessions?id=eq.{session['id']}&select=published_at")[0]['published_at']
         state = 'updated (still published)' if published else 'loaded as a draft (only admins can see it; re-run with --publish)'
     what = f"{len(manifest['segments'])} parts, {len(slides)} slides, " if not args.cohort else ''
-    print(f"Session {session['number']} {state}: {what}{loaded} items of session material"
-          + (", songs replaced from songs.csv." if args.songs else " (songs left as they are; use --songs to load them)."))
+    print(f"Session {session['number']} {state}: {what}{loaded} items of session material.")
 
 
 if __name__ == '__main__':

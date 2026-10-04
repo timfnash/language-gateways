@@ -26,6 +26,7 @@
       <p class="message ok ui" id="watch-end" hidden></p>
       <p class="ui"><button type="button" class="secondary" id="toggle-transcript" aria-expanded="false" aria-controls="transcript">Show transcript</button></p>
       <section class="prose transcript" id="transcript" hidden></section>
+      <section class="watch-songs" id="watch-songs"></section>
     </section>
 
     <section id="panel-read" role="tabpanel" hidden>
@@ -125,7 +126,7 @@
       $('summary').textContent = seg.summary ?? '';
 
       const [{ data: full }, { data: myCohort }, urls] = await Promise.all([
-        supabase.from('segments').select('transcript, songs').eq('id', seg.id).single(),
+        supabase.from('segments').select('transcript').eq('id', seg.id).single(),
         supabase.from('cohorts').select('share_limit').eq('id', profile.cohort).maybeSingle(),
         signedUrls(seg.slides),
       ]);
@@ -218,14 +219,41 @@
         loadMaterial();
       }
 
-      function songHtml(song) {
-        const id = youtubeId(song.url);
-        const label = [song.translation && `(${song.translation})`, song.language].filter(Boolean).join(' · ');
-        return `<div class="song">
-          <h3><a href="${attr(song.url)}" target="_blank" rel="noopener">${attr(song.title)}</a>${label ? ` <span class="song-meta">${attr(label)}</span>` : ''}</h3>
-          ${id ? `<div data-youtube="${id}" data-caption=""></div>` : ''}
-          ${song.body ? markdown(song.body) : ''}
-        </div>`;
+      // One load of this part's session material, shared by the Watch tab (songs) and the Read tab.
+      let materialLoad = null;
+      const getMaterial = () => materialLoad ??= Promise.all([
+        supabase.rpc('session_material', { p_segment: seg.id, p_scope: 'all' }),
+        supabase.from('churches').select('name').eq('id', profile.church).maybeSingle(),
+      ]);
+      const isSongsPart = /song/i.test(seg.title);
+      const songLabel = song => [song.translation && `(${song.translation})`, song.language].filter(Boolean).join(' · ');
+
+      // Read tab: a bulleted list, title (linked to its video), English title, language, and what was said.
+      function songListHtml(songs) {
+        return `<ul class="song-list">${songs.map(song => `<li>
+          <strong><a href="${attr(song.url)}" target="_blank" rel="noopener">${attr(song.title)}</a></strong>
+          ${songLabel(song) ? `<span class="song-meta">${attr(songLabel(song))}</span>` : ''}
+          ${song.body ? `<div class="song-story">${markdown(song.body)}</div>` : ''}</li>`).join('')}</ul>`;
+      }
+
+      // Watch tab: each song's details above its video.
+      async function loadWatchSongs() {
+        const { data, error } = (await getMaterial())[0];
+        if (error) return;
+        const songs = data.filter(i => i.mine && i.kind === 'song');
+        if (songs.length) {
+          $('watch-songs').innerHTML = '<h2>Songs</h2>' + songs.map(song => {
+            const id = youtubeId(song.url);
+            return `<div class="song"><h3>${attr(song.title)}${songLabel(song) ? ` <span class="song-meta">${attr(songLabel(song))}</span>` : ''}</h3>${
+              id ? `<div data-youtube="${id}" data-caption=""></div>`
+                 : `<p><a href="${attr(song.url)}" target="_blank" rel="noopener">Watch on YouTube</a></p>`}</div>`;
+          }).join('');
+          embedVideos($('watch-songs'));
+        } else if (isSongsPart) {
+          const shared = data.some(i => !i.mine && i.kind === 'song');
+          $('watch-songs').innerHTML = `<div class="card empty-material"><p><strong>Your group hasn’t had this session yet</strong>,
+            or no songs have been added for it.</p>${shared ? '<p class="meta">Songs other groups have shared are listed on the Read tab.</p>' : ''}</div>`;
+        }
       }
 
       const discussionHtml = (tables, prayers) =>
@@ -234,29 +262,24 @@
 
       async function loadMaterial() {
         $('material').innerHTML = '<p class="meta">Loading…</p>';
-        const [{ data, error }, { data: church }] = await Promise.all([
-          supabase.rpc('session_material', { p_segment: seg.id, p_scope: 'all' }),
-          supabase.from('churches').select('name').eq('id', profile.church).maybeSingle(),
-        ]);
+        const [{ data, error }, { data: church }] = await getMaterial();
         if (error) { $('material').innerHTML = `<p class="message error">${attr(error.message)}</p>`; return; }
         myChurchName = church?.name;
         const mine = data.filter(i => i.mine);
         others = data.filter(i => !i.mine);
         const of = kind => mine.filter(i => i.kind === kind);
         const talk = of('talk').map(t => t.body).join('\n\n');
-        // My group's songs, or the standard songs for this part if my group has none.
-        const songList = of('song').length ? of('song') : (full?.songs ?? []).map(s => ({ ...s, body: s.story }));
-        const songs = songList.map(songHtml).join('');
+        const mySongs = of('song');
+        const songs = mySongs.length ? songListHtml(mySongs) : '';
         const discussion = discussionHtml(of('table'), of('prayers'));
 
         let html = '';
-        if (!talk && !discussion) {
+        if (!talk && !discussion && !songs) {
           const watchLink = available.includes('watch')
             ? '<a href="#watch" data-tab="watch">watch this part</a> or <a href="#watch" data-tab="transcript">read its transcript</a>'
             : '<a href="#watch" data-tab="transcript">read the transcript</a>';
           html += `<div class="card empty-material"><p><strong>Your group hasn’t had this session yet</strong>, or nothing
             has been added for it.</p><p class="meta">You can ${watchLink}.</p></div>`;
-          if (songs) html += '<h2>Songs</h2>' + songs;
         } else {
           // Songs go where the talk marks <!-- songs -->, table write-ups where it marks <!-- contributions -->;
           // otherwise they follow the talk. (The sanitiser drops HTML comments, so swap the markers for
@@ -269,7 +292,6 @@
           if (!placed.discussion) html += discussion;
         }
         $('material').innerHTML = html;
-        embedVideos($('material'));
         $('material').querySelectorAll('a[data-tab]').forEach(a => a.addEventListener('click', e => {
           e.preventDefault();
           select('watch');
@@ -278,7 +300,7 @@
         $('other-tables').hidden = !others.length;
         drawOthers();
         // Reaching the end of your group's write-up counts as having read it.
-        if (talk || discussion) new IntersectionObserver((entries, obs) => {
+        if (talk || discussion || songs) new IntersectionObserver((entries, obs) => {
           if (entries.some(e => e.isIntersecting)) { complete('read'); obs.disconnect(); }
         }).observe($('read-end'));
       }
@@ -298,11 +320,10 @@
             ? groups.map(g => {
                 const songs = g.items.filter(i => i.kind === 'song');
                 return `<details class="cohort-material"><summary>${attr(g.label)}</summary><div class="prose">${
-                  songs.length ? '<h2>Songs</h2>' + songs.map(songHtml).join('') : ''}${
+                  songs.length ? '<h2>Songs</h2>' + songListHtml(songs) : ''}${
                   discussionHtml(g.items.filter(i => i.kind === 'table'), g.items.filter(i => i.kind === 'prayers'))}</div></details>`;
               }).join('')
             : `<p class="meta">No other groups ${readScope === 'church' ? 'in your church ' : ''}have shared anything for this part yet.</p>`;
-        embedVideos($('other-material'));
       }
 
       // Watch: the standard transcript, with slides, under the video.
@@ -322,6 +343,7 @@
       $('toggle-transcript').addEventListener('click', () => showTranscript($('transcript').hidden));
 
       function setupWatch() {
+        loadWatchSongs();
         $('watch-note').textContent = `This part runs from ${formatTime(seg.youtube_start)}`
           + (seg.youtube_end ? ` to ${formatTime(seg.youtube_end)}` : '') + ' of the session video.';
         // YouTube's own start/end only hold for the first play, so keep playback inside this part

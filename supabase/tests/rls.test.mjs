@@ -32,6 +32,7 @@ const LATER = '20261003';
 const JOIN_LINKS = '20261006';
 const CONFIRMATION = '20261007';
 const MATERIAL = '20261008';
+const NO_STANDARD = '20261009';
 for (const file of migrations.filter(f => f < LATER)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
@@ -471,7 +472,7 @@ await asErr('members cannot list unconfirmed accounts', ids.jo, `select * from p
 // ---------------------------------------------------------------------------
 // Shared teaching, per-cohort session material and sharing limits
 // ---------------------------------------------------------------------------
-for (const file of migrations.filter(f => f >= MATERIAL)) {
+for (const file of migrations.filter(f => f >= MATERIAL && f < NO_STANDARD)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
 r = await db.query(`select transcript from public.segments where id = 'fid-1-1'`);
@@ -503,24 +504,20 @@ r = await as(ids.jo, `select kind, body from public.contributions where cohort =
 check('…not even by reading the table directly', !r.rows.some(x => x.kind === 'talk'));
 r = await as(ids.bob, `select kind from public.session_material('fid-1-1', 'cohort')`);
 check('a cohort still sees its own talk', r.rows.some(x => x.kind === 'talk'));
-// Song editing: admins anywhere; church admins for their church's cohorts only
+// Songs come from the loader, not from the Admin page
+for (const file of migrations.filter(f => f >= NO_STANDARD)) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
+r = await db.query(`select 1 from information_schema.columns where table_schema = 'public' and table_name = 'segments' and column_name = 'songs'`);
+check('there are no standard songs', r.rows.length === 0);
 await as(ids.tim, `select public.admin_set_role('dave@example.com', 'church')`);
-r = await as(ids.dave, `insert into public.contributions (segment, cohort, kind, position, title, url) values
-  ('fid-1-1', 'freedom-church-jersey-2027-01', 'song', 1, 'Spring song', 'https://youtu.be/abcdefghijk') returning id`);
-check('church admins add songs for their church\'s cohorts', r.rows.length === 1);
-r = await as(ids.dave, `update public.contributions set title = 'Renamed' where kind = 'song' and cohort = 'freedom-church-jersey-2026-09' returning id`);
-check('…and edit them in any cohort of their church', r.rows.length > 0);
-await asErr('…but not for another church', ids.dave, `insert into public.contributions (segment, cohort, kind, position, title) values
-  ('fid-1-1', 'other-2026', 'song', 1, 'x')`, 'row-level security');
-await asErr('…and not talks or tables', ids.dave, `insert into public.contributions (segment, cohort, kind, position, title, body) values
-  ('fid-1-1', 'freedom-church-jersey-2027-01', 'talk', 1, 'x', 'y')`, 'row-level security');
+await asErr('church admins cannot add songs', ids.dave, `insert into public.contributions (segment, cohort, kind, position, title, url) values
+  ('fid-1-1', 'freedom-church-jersey-2027-01', 'song', 1, 'Spring song', 'https://youtu.be/abcdefghijk')`, 'row-level security');
 await asErr('members cannot add songs', ids.jo, `insert into public.contributions (segment, cohort, kind, position, title) values
   ('fid-1-1', 'freedom-church-jersey-2026-09', 'song', 9, 'x')`, 'row-level security');
-r = await as(ids.dave, `delete from public.contributions where title = 'Spring song' returning id`);
-check('church admins remove their church\'s songs', r.rows.length === 1);
+r = await as(ids.dave, `select title from public.contributions where kind = 'song'`);
+check('church admins can still read the songs they may see', r.rows.length > 0);
 await as(ids.tim, `select public.admin_set_role('dave@example.com', 'none')`);
-r = await db.query(`select songs from public.segments where id = 'fid-1-1'`);
-check('segments have standard songs (empty by default)', Array.isArray(r.rows[0]?.songs) && r.rows[0].songs.length === 0);
 r = await material('dave', 'church');
 check('…but "my church" shows it', r.some(x => x.cohort_name === 'Autumn 2026'));
 

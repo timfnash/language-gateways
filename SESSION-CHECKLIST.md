@@ -6,7 +6,7 @@
 - [ ] Label each recorder with its table number, then put one on each table
 - [ ] Set the recorders to their longest file length if possible
 - [ ] Check the front mic and video camera
-- [ ] Finalise the slides; song links go in the PowerPoint as hyperlinks
+- [ ] Finalise the slides (the songs part uses the generic SONGS slide, `Sessions/shared/slide-songs.jpg`)
 - [ ] Export the slides to PDF
 
 ## During
@@ -26,9 +26,10 @@
 3. In a new Claude Code session in this project: **"Process session Sessions/<folder> following SESSION-CHECKLIST.md"**
    - transcribe the tables and front audio
    - remove hallucinated repetition
-   - tidy the front talk, place the slides and add the song links
+   - tidy the front talk and place the slides
    - summarise each table's discussions, collect the prayers, pick quotes
-   - write up what was said with this cohort, and its songs, tables and prayers, in
+   - write up what was said with this cohort, and its songs (Tim sends me the YouTube links in the order sung; the
+     loader checks them), tables and prayers, in
      `Sessions/fid-<n>/cohorts/<cohort-id>/` (see `docs/LOADING-SESSIONS.md`)
 4. Review the draft: quotes, spellings of non-English words, and that nobody but Tim is identifiable
 5. Load it as a draft, check it on the site as an admin, then publish it to the cohort (`docs/LOADING-SESSIONS.md`)
