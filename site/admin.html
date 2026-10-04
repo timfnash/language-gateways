@@ -257,14 +257,22 @@
           supabase.from('churches').select('id, name').order('name'),
           supabase.from('cohorts').select('id, church, name, join_code, join_requires_approval, share_limit').order('created_at', { ascending: false }),
           supabase.from('invitations').select('*').order('created_at', { ascending: false }),
-          supabase.from('profiles').select('email').eq('status', 'active'),
+          supabase.from('profiles').select('email, given_name, family_name, mother_tongue, other_languages').eq('status', 'active'),
           isAdmin ? supabase.rpc('admin_list_roles') : Promise.resolve({ data: [] }),
           supabase.rpc('admin_unconfirmed_emails'),
         ]);
         // "Joined" means an active account with a confirmed email address.
         unconfirmed = new Set((unconf ?? []).map(u => typeof u === 'string' ? u : u.admin_unconfirmed_emails ?? u.email));
         roles = new Map((roleList ?? []).map(r => [r.email, r.role]));
-        churches = ch ?? []; cohorts = cs ?? []; invites = inv ?? [];
+        churches = ch ?? []; cohorts = cs ?? [];
+        // For people who have joined, show what's on their profile (the invitation only has what was known when
+        // they were invited); everyone else shows the invitation's details.
+        const profileOf = new Map((profiles ?? []).map(p => [p.email, p]));
+        invites = (inv ?? []).map(i => {
+          const p = profileOf.get(i.email);
+          return p ? { ...i, given_name: p.given_name, family_name: p.family_name,
+                       mother_tongue: p.mother_tongue, other_languages: p.other_languages } : i;
+        });
         joined = new Set((profiles ?? []).map(p => p.email).filter(e => !unconfirmed.has(e)));
 
         const keep = (el, html) => { const v = el.value; el.innerHTML = html; if ([...el.options].some(o => o.value === v)) el.value = v; };
