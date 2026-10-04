@@ -58,3 +58,13 @@ Decided with Tim (2 Oct 2026): no separate comments; notes themselves are shared
 - [ ] Sessions 2–5 (Babel, Pentecost, Hebrew, Greek)
 - [ ] More churches and cohorts; approved contributions feed the shared "standard" course
 - [ ] Revisit sensitive profile fields (denomination, years as a Christian, location) with explicit consent and a privacy notice (UK GDPR / Data Protection (Jersey) Law 2018)
+- [ ] More courses on the same site, with a course picker (decided 5 Oct 2026: one site and one database, not a
+      site per course). Build when a second course is ready to launch. It needs:
+  - cohorts that belong to a course (a `course` column on `cohorts`);
+  - people in more than one course: memberships instead of one church and cohort per profile, with the access
+    rules (what you can read, which cohort your notes belong to, who sees what) working out your cohort from the
+    course you're viewing, plus tests;
+  - a course picker on the home page (the courses you're in) and the current course shown in the header;
+  - the course name taken from the `courses` table instead of being written into the header, privacy notice,
+    terms and email templates.
+  Meanwhile, avoid hard-coding the course name in new text where it's easy not to.
