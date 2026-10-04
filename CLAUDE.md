@@ -92,7 +92,8 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
 - Content lives in `Sessions/fid-<n>/` in this repo (git-ignored: never commit it): shared parts, slides and
   transcripts at the top, each cohort's talk, songs.csv, tables and prayers under `cohorts/<cohort-id>/`.
   Loaded with `pipeline/load_session.py`; see `docs/LOADING-SESSIONS.md`. In a segment's Markdown,
-  `![caption](slide:N)` places the segment's Nth slide, `![caption](youtube:ID)` embeds a video, and `<!-- contributions -->` marks where the table
+  `![caption](slide:N)` places the segment's Nth slide, `![caption](youtube:ID)` marks an extra video (a link in the text; embedded on the Watch tab under the
+  part's own video: the general rule for any extra or 3rd-party video), and `<!-- contributions -->` marks where the table
   write-ups or prayers go.
 - The Session One Full Record Claude doc stores its slide images as artifact assets; they can be downloaded one at
   a time with the Artifact tool's read action and an asset id.

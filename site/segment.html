@@ -99,6 +99,13 @@
     import { supabase, requireSignedIn, pageUrl, loadCourse, recordProgress, signedUrls,
              isComplete, formatTime, partTitle, MODES } from './assets/app.js';
     const $ = id => document.getElementById(id);
+    // Links to other sites (videos, songs) open in a new tab.
+    DOMPurify.addHook('afterSanitizeAttributes', node => {
+      if (node.tagName === 'A' && /^https?:/i.test(node.getAttribute('href') || '')) {
+        node.setAttribute('target', '_blank');
+        node.setAttribute('rel', 'noopener noreferrer');
+      }
+    });
     const render = md => DOMPurify.sanitize(marked.parse(md ?? ''));
 
     const { profile } = await requireSignedIn();
@@ -134,7 +141,8 @@
       // Markdown with ![caption](slide:N) for this part's Nth slide and ![caption](youtube:ID) for a video.
       const attr = t => String(t ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
       const markdown = md => render(String(md ?? '')
-        .replace(/!\[([^\]]*)\]\(youtube:([A-Za-z0-9_-]{6,20})\)/g, (m, caption, id) => `<div data-youtube="${id}" data-caption="${attr(caption)}"></div>`)
+        // Extra videos are watched on the Watch tab; in text they are just a link.
+        .replace(/!\[([^\]]*)\]\(youtube:([A-Za-z0-9_-]{6,20})\)/g, (m, caption, id) => `[▶ ${caption.trim() || 'Watch the video'}](https://www.youtube.com/watch?v=${id})`)
         .replace(/\]\(slide:(\d+)\)/g, (m, n) => `](${urls[seg.slides[n - 1]] ?? ''})`));
       const youtubeId = url => (String(url ?? '').match(/(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,20})/) ?? [])[1];
       function embedVideos(container) {
@@ -226,6 +234,9 @@
         supabase.from('churches').select('name').eq('id', profile.church).maybeSingle(),
       ]);
       const isSongsPart = /song/i.test(seg.title);
+      // ![caption](youtube:ID) in the standard transcript or my cohort's talk: extra videos, shown on the Watch tab.
+      const videosIn = md => [...String(md ?? '').matchAll(/!\[([^\]]*)\]\(youtube:([A-Za-z0-9_-]{6,20})\)/g)]
+        .map(m => ({ caption: m[1].trim(), id: m[2] }));
       const songLabel = song => [song.translation && `(${song.translation})`, song.language].filter(Boolean).join(' · ');
 
       // Read tab: a bulleted list, title (linked to its video), English title, language, and what was said.
@@ -236,26 +247,33 @@
           ${song.body ? `<div class="song-story">${markdown(song.body)}</div>` : ''}</li>`).join('')}</ul>`;
       }
 
-      // Watch tab: each song's details above its video.
-      async function loadWatchSongs() {
+      // Watch tab, under the part's own video and its transcript button: extra videos named in the write-ups
+      // (3rd-party clips and the like), then this cohort's songs, each with its details above the video.
+      async function loadWatchExtras() {
         const { data, error } = (await getMaterial())[0];
         if (error) return;
+        const talk = data.filter(i => i.mine && i.kind === 'talk').map(t => t.body).join('\n\n');
+        const seen = new Set();
+        const clips = [...videosIn(full?.transcript), ...videosIn(talk)].filter(c => !seen.has(c.id) && seen.add(c.id));
         const songs = data.filter(i => i.mine && i.kind === 'song');
-        if (songs.length) {
-          $('watch-songs').innerHTML = '<h2>Songs</h2>' + songs.map(song => {
-            const id = youtubeId(song.url);
-            return `<div class="song"><h3>${attr(song.title)}${songLabel(song) ? ` <span class="song-meta">${attr(songLabel(song))}</span>` : ''}</h3>${
-              id ? `<div data-youtube="${id}" data-caption=""></div>`
-                 : `<p><a href="${attr(song.url)}" target="_blank" rel="noopener">Watch on YouTube</a></p>`}</div>`;
-          }).join('');
-          embedVideos($('watch-songs'));
-        } else if (isSongsPart) {
+        const clipHtml = c => `<div class="song">${c.caption ? `<h3>${attr(c.caption)}</h3>` : ''}<div data-youtube="${c.id}" data-caption=""></div></div>`;
+        const songHtml = song => {
+          const id = youtubeId(song.url);
+          return `<div class="song"><h3>${attr(song.title)}${songLabel(song) ? ` <span class="song-meta">${attr(songLabel(song))}</span>` : ''}</h3>${
+            id ? `<div data-youtube="${id}" data-caption=""></div>`
+               : `<p><a href="${attr(song.url)}" target="_blank" rel="noopener">Watch on YouTube</a></p>`}</div>`;
+        };
+        let html = '';
+        if (clips.length) html += '<h2>More to watch</h2>' + clips.map(clipHtml).join('');
+        if (songs.length) html += '<h2>Songs</h2>' + songs.map(songHtml).join('');
+        else if (isSongsPart) {
           const shared = data.some(i => !i.mine && i.kind === 'song');
-          $('watch-songs').innerHTML = `<div class="card empty-material"><p><strong>Your group hasn’t had this session yet</strong>,
+          html += `<div class="card empty-material"><p><strong>Your group hasn’t had this session yet</strong>,
             or no songs have been added for it.</p>${shared ? '<p class="meta">Songs other groups have shared are listed on the Read tab.</p>' : ''}</div>`;
         }
+        $('watch-songs').innerHTML = html;
+        embedVideos($('watch-songs'));
       }
-
       const discussionHtml = (tables, prayers) =>
         (tables.length ? '<h2>At the tables</h2>' + tables.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '') +
         (prayers.length ? '<h2>Prayers from the tables</h2>' + prayers.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '');
@@ -333,7 +351,6 @@
           $('transcript').innerHTML = (full?.transcript ?? '').trim()
             ? markdown(full.transcript.replaceAll('<!-- contributions -->', '').replaceAll('<!-- songs -->', ''))
             : '<p class="meta">The transcript for this part isn’t available yet.</p>';
-          embedVideos($('transcript'));
           transcriptDrawn = true;
         }
         $('transcript').hidden = !open;
@@ -343,7 +360,7 @@
       $('toggle-transcript').addEventListener('click', () => showTranscript($('transcript').hidden));
 
       function setupWatch() {
-        loadWatchSongs();
+        loadWatchExtras();
         $('watch-note').textContent = `This part runs from ${formatTime(seg.youtube_start)}`
           + (seg.youtube_end ? ` to ${formatTime(seg.youtube_end)}` : '') + ' of the session video.';
         // YouTube's own start/end only hold for the first play, so keep playback inside this part
