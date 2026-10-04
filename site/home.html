@@ -35,7 +35,7 @@
       <p>The talk, slides and table discussions from Session One will appear here, so you can read, watch or revisit them at your own pace.</p>
     </div>
 
-    <p class="meta" id="admin-note" hidden>You’re signed in as an admin, so you can also see draft sessions. Manage invitations in the Supabase table editor for now.</p>
+    <p class="meta" id="admin-note" hidden></p>
   </main>
 
   <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
@@ -58,10 +58,18 @@
       if (!profile.confirmed_at) location.replace(pageUrl('profile.html'));
       if (profile.given_name) document.getElementById('greeting').textContent = `Welcome, ${profile.given_name}`;
 
-      const [{ sessions, progress, notes, segments }, { data: isAdmin }] = await Promise.all([
-        loadCourse(), supabase.rpc('is_admin'),
+      const [{ sessions, progress, notes, segments }, { data: roleRows }] = await Promise.all([
+        loadCourse(), supabase.rpc('my_role'),
       ]);
-      document.getElementById('admin-note').hidden = !isAdmin;
+      const role = roleRows?.[0]?.role;
+      const adminNote = document.getElementById('admin-note');
+      if (role === 'admin') {
+        adminNote.innerHTML = 'You’re signed in as an admin, so you can also see draft sessions. Manage people, requests to join, sharing and shared notes on the <a href="admin.html">Admin page</a>.';
+        adminNote.hidden = false;
+      } else if (role === 'church') {
+        adminNote.innerHTML = 'You’re a church admin. Approve requests to join and see your church’s people on the <a href="admin.html">Admin page</a>.';
+        adminNote.hidden = false;
+      }
       document.getElementById('empty').hidden = sessions.some(s => s.published_at);
 
       // Continue where you left off: the most recently opened segment, or the next unfinished one if that's done.
