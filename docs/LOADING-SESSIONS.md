@@ -27,6 +27,7 @@ session has its own folder under `cohorts/`.
 ```
 Sessions/fid-1/
   session.json                     the session and its parts: titles, summaries, slides, video times
+  songs.csv                        standard songs, shown to any cohort with no songs of its own for that part
   slides/                          slide-01.jpg, slide-02.jpg, … (the shared slides, in order)
   transcripts/fid-1-1.md …         the standard transcript of each part, shown under the video (Watch tab)
   cohorts/freedom-church-jersey-2026-09/
@@ -43,9 +44,11 @@ Sessions/fid-1/
   write-ups and prayers go; without the markers they follow the talk.
 - **Songs** come from `songs.csv`, one row per song: the part (`segment`), the title as sung, an English
   translation of the title, the language, the YouTube link and, optionally, the story behind it. Each shows as a
-  linked title with the video embedded beneath it.
-- Who can read a cohort's material is set by the cohort's **sharing** setting on the Admin page (all participants
-  by default, or its church, or just the cohort).
+  linked title with the video embedded beneath it. A cohort with no songs of its own for a part sees the
+  **standard** songs from the session's top-level `songs.csv`.
+- The Read tab only ever shows a person their own cohort's talk and songs. Other cohorts' **table discussions and
+  prayers** can be read too, under "Table discussions in other groups" (My cohort / My church / All participants),
+  within each cohort's **sharing** setting on the Admin page.
 
 Parts can be split, added or reordered: change `session.json` (each part's `position`, slides and video times)
 and reload. Keep existing parts' `id`s, because people's progress and notes are stored against them; give new

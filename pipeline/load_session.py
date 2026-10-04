@@ -9,6 +9,8 @@
 Folder layout (see docs/LOADING-SESSIONS.md):
 
     session.json                 the session and its parts: titles, slides, video times, transcript files
+    songs.csv                    standard songs (segment,title,translation,language,url,story), used by any
+                                 cohort that has no songs of its own for that part
     slides/                      slide-01.jpg …
     transcripts/<part>.md        the standard transcript of each part (Watch tab)
     cohorts/<cohort-id>/         one folder per cohort that has had this session (Read tab):
@@ -61,6 +63,23 @@ def check_markdown(where, text, slides, problems):
             problems.append(f"{where}: more than one {marker} marker")
 
 
+def read_songs(path, parts, problems):
+    """songs.csv rows → {part id: [{title, translation, language, url, story}, …]}."""
+    songs = {}
+    with open(path, newline='') as fh:
+        for n, row in enumerate(csv.DictReader(fh), 2):
+            row = {k: (v or '').strip() for k, v in row.items() if k}
+            if row.get('segment') not in parts:
+                problems.append(f"{path} row {n}: unknown part {row.get('segment')!r}"); continue
+            if not YOUTUBE.search(row.get('url', '')):
+                problems.append(f"{path} row {n}: {row.get('url')!r} isn't a YouTube link"); continue
+            if not row.get('title'):
+                problems.append(f"{path} row {n}: the song needs a title"); continue
+            songs.setdefault(row['segment'], []).append({k: row.get(k) or None for k in ('title', 'translation', 'language', 'url')}
+                                                          | {'story': row.get('story', '')})
+    return songs
+
+
 def read_folder(folder):
     manifest = json.loads((folder / 'session.json').read_text())
     problems = []
@@ -71,6 +90,11 @@ def read_folder(folder):
             if not (folder / 'slides' / name).exists():
                 problems.append(f"{seg['id']}: missing slides/{name}")
         check_markdown(seg['transcript'], seg['transcript_text'], len(seg['slides']), problems)
+
+    # Standard songs, shown to cohorts that have none of their own for a part.
+    standard = read_songs(folder / 'songs.csv', parts, problems) if (folder / 'songs.csv').exists() else {}
+    for seg in manifest['segments']:
+        seg['songs'] = standard.get(seg['id'], [])
 
     cohorts = {}
     for cdir in sorted((folder / 'cohorts').glob('*/')) if (folder / 'cohorts').exists() else []:
@@ -89,17 +113,11 @@ def read_folder(folder):
                 items.append({'segment': m.group(1), 'kind': kind, 'position': int(m.group(2)),
                               'title': f'Table {m.group(2)}', 'body': f.read_text()})
         if (cdir / 'songs.csv').exists():
-            with open(cdir / 'songs.csv', newline='') as fh:
-                for n, row in enumerate(csv.DictReader(fh), 2):
-                    if row.get('segment') not in parts:
-                        problems.append(f"{cdir.name}/songs.csv row {n}: unknown part {row.get('segment')!r}"); continue
-                    if not YOUTUBE.search(row.get('url') or ''):
-                        problems.append(f"{cdir.name}/songs.csv row {n}: {row.get('url')!r} isn't a YouTube link")
-                    position = 1 + sum(1 for i in items if i['kind'] == 'song' and i['segment'] == row['segment'])
-                    items.append({'segment': row['segment'], 'kind': 'song', 'position': position,
-                                  'title': (row.get('title') or '').strip(), 'body': (row.get('story') or '').strip(),
-                                  'url': (row.get('url') or '').strip(), 'language': (row.get('language') or '').strip() or None,
-                                  'translation': (row.get('translation') or '').strip() or None})
+            for part, songs in read_songs(cdir / 'songs.csv', parts, problems).items():
+                for n, song in enumerate(songs, 1):
+                    items.append({'segment': part, 'kind': 'song', 'position': n, 'title': song['title'],
+                                  'body': song['story'], 'url': song['url'], 'language': song['language'],
+                                  'translation': song['translation']})
         cohorts[cdir.name] = items
     return manifest, cohorts, problems
 
@@ -144,7 +162,8 @@ def main():
         problems.append(f"no folder cohorts/{args.cohort}")
     for seg in manifest['segments']:
         print(f"{seg['position']}. {seg['id']}  {seg['title']}: {len(seg['slides'])} slides, "
-              f"{len(seg['transcript_text'].split())}-word transcript")
+              f"{len(seg['transcript_text'].split())}-word transcript"
+              + (f", {len(seg['songs'])} standard songs" if seg['songs'] else ''))
     for cohort, items in cohorts.items():
         counts = {k: sum(1 for i in items if i['kind'] == k) for k in ('talk', 'song', 'table', 'prayers')}
         print(f"cohort {cohort}: {counts['talk']} talks, {counts['song']} songs, {counts['table']} table write-ups, "
@@ -177,6 +196,7 @@ def main():
         rows = [{
             'id': seg['id'], 'session': session['id'], 'position': seg['position'], 'title': seg['title'],
             'summary': seg['summary'], 'transcript': seg['transcript_text'], 'body': seg['transcript_text'],
+            'songs': seg['songs'],
             'slides': [f"{session['id']}/{name}" for name in seg['slides']],
             'youtube_start': seg['youtube_start'], 'youtube_end': seg['youtube_end'],
         } for seg in manifest['segments']]

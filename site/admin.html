@@ -88,8 +88,9 @@
     </section>
 
     <section id="panel-groups" role="tabpanel" class="ui" hidden>
-      <p class="lead">Each cohort’s <strong>sharing</strong> setting decides who can read its session material (what was said,
-        songs, table discussions and prayers), and how far its members can share their notes.</p>
+      <p class="lead">Each cohort’s <strong>sharing</strong> setting decides who outside the cohort can read its table discussions
+        and prayers, and how far its members can share their notes. (What was said and its songs are only ever shown
+        to the cohort itself.)</p>
       <div id="groups"></div>
       <div class="admin-grid" data-admin-only>
         <form class="card" id="add-church">
@@ -401,7 +402,7 @@
         const limit = e.target.closest('select[data-share]');
         if (limit) {
           const c = cohorts.find(c => c.id === limit.dataset.share), label = limit.selectedOptions[0].textContent.toLowerCase();
-          const ok = await ask(`Change sharing for ${c.name} to “${label}”?\n\nThis decides who can read the cohort’s session material, and how far its members can share their notes. Notes already shared more widely will be narrowed to this.`, { ok: 'Change sharing' });
+          const ok = await ask(`Change sharing for ${c.name} to “${label}”?\n\nThis decides who outside the cohort can read its table discussions and prayers, and how far its members can share their notes. Notes already shared more widely will be narrowed to this.`, { ok: 'Change sharing' });
           if (!ok) { limit.value = c.share_limit; return; }
           const { error } = await supabase.rpc('set_cohort_share_limit', { p_cohort: c.id, p_limit: limit.value });
           if (error) { limit.value = c.share_limit; return tell(error.message); }

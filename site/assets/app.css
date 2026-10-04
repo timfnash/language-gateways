@@ -168,7 +168,8 @@ footer a { color: var(--muted); }
 .tab-intro { margin: 4px 0 16px; color: var(--muted); font-size: .95rem; }
 .transcript { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
 .choices label:has(input:disabled) { opacity: .45; cursor: default; }
-#read-scope { margin: 0 0 20px; }
+.other-tables { margin-top: 40px; padding-top: 8px; border-top: 1px solid var(--border); }
+#read-scope { margin: 0 0 16px; }
 .cohort-material { margin: 0 0 24px; }
 details.cohort-material { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0 20px; }
 details.cohort-material > summary { cursor: pointer; padding: 14px 0; font-weight: 600; color: var(--brand); list-style-position: outside; }

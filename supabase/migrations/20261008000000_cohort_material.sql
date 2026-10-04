@@ -2,7 +2,9 @@
 --
 -- * Each segment has a standard transcript (the written form of the standard video), shown on the Watch tab.
 -- * Each cohort has its own session material per segment: what was said ('talk'), songs ('song'),
---   table discussions ('table') and prayers ('prayers'), shown on the Read tab.
+--   table discussions ('table') and prayers ('prayers'), shown on the Read tab. Talks and songs are only
+--   ever visible to the cohort itself; table discussions and prayers can be read across cohorts.
+-- * Each segment can have standard songs, shown to a cohort that has no songs of its own for that part.
 -- * Each cohort has a sharing limit (everyone by default, or its church, or just the cohort), set by
 --   admins or that church's church admins. It limits who can see the cohort's session material, and
 --   caps its members' notes: people still choose each note's visibility, but never beyond the limit.
@@ -15,6 +17,8 @@
 
 alter table public.segments add column transcript text not null default '';
 update public.segments set transcript = body;
+-- Standard songs: [{title, translation, language, url, story}], used when a cohort has none of its own.
+alter table public.segments add column songs jsonb not null default '[]'::jsonb;
 
 alter table public.cohorts
   add column share_limit text not null default 'everyone' check (share_limit in ('everyone', 'church', 'cohort'));
@@ -83,13 +87,16 @@ create policy "members read session material they may see" on public.contributio
   using (
     (select public.is_admin())
     or (exists (select 1 from public.cohorts c
-                where c.id = contributions.cohort and public.visible_to_me(c.church, c.id, c.share_limit))
+                where c.id = contributions.cohort
+                  and (c.id = public.my_cohort()
+                       or (contributions.kind in ('table', 'prayers') and public.visible_to_me(c.church, c.id, c.share_limit))))
         and exists (select 1 from public.segments g join public.sessions s on s.id = g.session
                     where g.id = contributions.segment and s.published_at is not null))
   );
 
--- A segment's session material that I may see, with the cohort it came from.
--- p_scope: 'cohort' (default: my cohort), 'church' (my church) or 'all'. My cohort comes first.
+-- A segment's session material that I may see, with the cohort it came from: all of my own cohort's, plus
+-- other cohorts' table discussions and prayers within p_scope: 'cohort' (default: just mine), 'church' or 'all'.
+-- My cohort comes first.
 create function public.session_material(p_segment text, p_scope text default 'cohort')
 returns table (id uuid, cohort text, cohort_name text, church_name text, mine boolean, kind text, item_position int,
                title text, body text, url text, language text, translation text)
@@ -107,7 +114,8 @@ as $$
   join public.sessions s on s.id = g.session
   where x.segment = p_segment
     and (s.published_at is not null or public.is_admin())
-    and public.visible_to_me(c.church, c.id, c.share_limit)
+    and (c.id = public.my_cohort()
+         or (x.kind in ('table', 'prayers') and public.visible_to_me(c.church, c.id, c.share_limit)))
     and case p_scope
           when 'cohort' then c.id = public.my_cohort()
           when 'church' then c.church = public.my_church()

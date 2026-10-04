@@ -495,6 +495,16 @@ check('"all" adds other churches\' material (shared with everyone), mine first',
   r[0]?.mine === true && r.some(x => x.church_name === 'Other Church'), summary(r));
 r = await material('dave', 'cohort');
 check('another cohort of my church: nothing in "my cohort"', r.length === 0);
+r = await material('dave', 'all');
+check('other cohorts\' talks and songs are never shown, only their tables and prayers',
+  r.length > 0 && r.every(x => x.kind === 'table' || x.kind === 'prayers'), summary(r));
+await db.exec(`insert into public.contributions (segment, cohort, kind, title, body) values ('fid-1-1', 'other-2026', 'talk', 'What was said', 'Other talk')`);
+r = await as(ids.jo, `select kind, body from public.contributions where cohort = 'other-2026'`);
+check('…not even by reading the table directly', !r.rows.some(x => x.kind === 'talk'));
+r = await as(ids.bob, `select kind from public.session_material('fid-1-1', 'cohort')`);
+check('a cohort still sees its own talk', r.rows.some(x => x.kind === 'talk'));
+r = await db.query(`select songs from public.segments where id = 'fid-1-1'`);
+check('segments have standard songs (empty by default)', Array.isArray(r.rows[0]?.songs) && r.rows[0].songs.length === 0);
 r = await material('dave', 'church');
 check('…but "my church" shows it', r.some(x => x.cohort_name === 'Autumn 2026'));
 

@@ -31,14 +31,18 @@
     <section id="panel-read" role="tabpanel" hidden>
       <p class="tab-intro">Read what was said and shared in your group for this part. You can also add your own
         reflections and read those of others.</p>
-      <fieldset class="choices compact ui" id="read-scope">
-        <legend>Show sessions from</legend>
-        <label><input type="radio" name="read-scope" value="cohort"> My cohort</label>
-        <label><input type="radio" name="read-scope" value="church"> My church</label>
-        <label><input type="radio" name="read-scope" value="all"> All participants</label>
-      </fieldset>
-      <div id="material"></div>
+      <div id="material" class="prose"></div>
       <div id="read-end" aria-hidden="true"></div>
+      <section class="other-tables" id="other-tables" hidden>
+        <h2>Table discussions in other groups</h2>
+        <fieldset class="choices compact ui" id="read-scope">
+          <legend>Show table discussions from</legend>
+          <label><input type="radio" name="read-scope" value="cohort"> My cohort</label>
+          <label><input type="radio" name="read-scope" value="church"> My church</label>
+          <label><input type="radio" name="read-scope" value="all"> All participants</label>
+        </fieldset>
+        <div id="other-material"></div>
+      </section>
     </section>
 
     <section id="panel-slides" role="tabpanel" hidden>
@@ -121,7 +125,7 @@
       $('summary').textContent = seg.summary ?? '';
 
       const [{ data: full }, { data: myCohort }, urls] = await Promise.all([
-        supabase.from('segments').select('transcript').eq('id', seg.id).single(),
+        supabase.from('segments').select('transcript, songs').eq('id', seg.id).single(),
         supabase.from('cohorts').select('share_limit').eq('id', profile.cohort).maybeSingle(),
         signedUrls(seg.slides),
       ]);
@@ -196,17 +200,19 @@
         }
       }
 
-      // Read: what was said and shared in each group, filtered by scope (my cohort by default).
+      // Read: my group's material (what was said, songs, table discussions, prayers). Other groups' table
+      // discussions and prayers can be added below, by church or for all participants (my cohort only by default).
       let readScope = 'cohort';
       try { readScope = localStorage.getItem('fid-read-scope') || 'cohort'; } catch {}
       const readScopeInputs = [...document.querySelectorAll('input[name="read-scope"]')];
+      let others = [], myChurchName = null;
       function setupRead() {
         readScopeInputs.forEach(i => {
           i.checked = i.value === readScope;
           i.addEventListener('change', () => {
             readScope = i.value;
             try { localStorage.setItem('fid-read-scope', readScope); } catch {}
-            loadMaterial();
+            drawOthers();
           });
         });
         loadMaterial();
@@ -222,56 +228,76 @@
         </div>`;
       }
 
-      function groupHtml(items) {
-        const of = kind => items.filter(i => i.kind === kind);
-        const talk = of('talk').map(t => t.body).join('\n\n');
-        const songs = of('song').map(songHtml).join('');
-        const tables = of('table'), prayers = of('prayers');
-        const discussion =
-          (tables.length ? '<h2>At the tables</h2>' + tables.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '') +
-          (prayers.length ? '<h2>Prayers from the tables</h2>' + prayers.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '');
-        // Songs go where the talk marks <!-- songs -->, table write-ups where it marks <!-- contributions -->;
-        // otherwise they follow the talk. (The sanitiser drops HTML comments, so swap the markers for
-        // placeholder paragraphs before rendering.)
-        let html = markdown(talk.replace('<!-- songs -->', '\n\nFIDSONGSHERE\n\n').replace('<!-- contributions -->', '\n\nFIDTABLESHERE\n\n'));
-        const placed = { songs: false, discussion: false };
-        html = html.replace('<p>FIDSONGSHERE</p>', () => { placed.songs = true; return songs; });
-        html = html.replace('<p>FIDTABLESHERE</p>', () => { placed.discussion = true; return discussion; });
-        if (!placed.songs && songs) html += (talk ? '<h2>Songs</h2>' : '') + songs;
-        if (!placed.discussion) html += discussion;
-        return html;
-      }
+      const discussionHtml = (tables, prayers) =>
+        (tables.length ? '<h2>At the tables</h2>' + tables.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '') +
+        (prayers.length ? '<h2>Prayers from the tables</h2>' + prayers.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '');
 
       async function loadMaterial() {
         $('material').innerHTML = '<p class="meta">Loading…</p>';
-        const { data, error } = await supabase.rpc('session_material', { p_segment: seg.id, p_scope: readScope });
+        const [{ data, error }, { data: church }] = await Promise.all([
+          supabase.rpc('session_material', { p_segment: seg.id, p_scope: 'all' }),
+          supabase.from('churches').select('name').eq('id', profile.church).maybeSingle(),
+        ]);
         if (error) { $('material').innerHTML = `<p class="message error">${attr(error.message)}</p>`; return; }
-        const groups = [];
-        for (const item of data) {
-          const last = groups[groups.length - 1];
-          if (last?.cohort === item.cohort) last.items.push(item);
-          else groups.push({ cohort: item.cohort, mine: item.mine, label: `${item.church_name} · ${item.cohort_name}`, items: [item] });
+        myChurchName = church?.name;
+        const mine = data.filter(i => i.mine);
+        others = data.filter(i => !i.mine);
+        const of = kind => mine.filter(i => i.kind === kind);
+        const talk = of('talk').map(t => t.body).join('\n\n');
+        // My group's songs, or the standard songs for this part if my group has none.
+        const songList = of('song').length ? of('song') : (full?.songs ?? []).map(s => ({ ...s, body: s.story }));
+        const songs = songList.map(songHtml).join('');
+        const discussion = discussionHtml(of('table'), of('prayers'));
+
+        let html = '';
+        if (!talk && !discussion) {
+          const watchLink = available.includes('watch')
+            ? '<a href="#watch" data-tab="watch">watch this part</a> or <a href="#watch" data-tab="transcript">read its transcript</a>'
+            : '<a href="#watch" data-tab="transcript">read the transcript</a>';
+          html += `<div class="card empty-material"><p><strong>Your group hasn’t had this session yet</strong>, or nothing
+            has been added for it.</p><p class="meta">You can ${watchLink}.</p></div>`;
+          if (songs) html += '<h2>Songs</h2>' + songs;
+        } else {
+          // Songs go where the talk marks <!-- songs -->, table write-ups where it marks <!-- contributions -->;
+          // otherwise they follow the talk. (The sanitiser drops HTML comments, so swap the markers for
+          // placeholder paragraphs before rendering.)
+          html = markdown(talk.replace('<!-- songs -->', '\n\nFIDSONGSHERE\n\n').replace('<!-- contributions -->', '\n\nFIDTABLESHERE\n\n'));
+          const placed = { songs: false, discussion: false };
+          html = html.replace('<p>FIDSONGSHERE</p>', () => { placed.songs = true; return songs; });
+          html = html.replace('<p>FIDTABLESHERE</p>', () => { placed.discussion = true; return discussion; });
+          if (!placed.songs && songs) html += (talk ? '<h2>Songs</h2>' : '') + songs;
+          if (!placed.discussion) html += discussion;
         }
-        const hasMine = groups.some(g => g.mine);
-        const watchLink = available.includes('watch')
-          ? '<a href="#watch" data-tab="watch">watch this part</a> or <a href="#watch" data-tab="transcript">read its transcript</a>'
-          : '<a href="#watch" data-tab="transcript">read the transcript</a>';
-        const empty = hasMine ? '' : `<div class="card empty-material"><p><strong>Your group hasn’t had this session yet</strong>, or
-          nothing has been added for it.</p><p class="meta">You can ${watchLink}${readScope === 'cohort'
-          ? ', or choose <strong>My church</strong> or <strong>All participants</strong> above to read what other groups shared.' : '.'}</p></div>`;
-        $('material').innerHTML = empty + groups.map(g => g.mine
-          ? `<section class="cohort-material prose mine">${groups.length > 1 ? `<p class="kicker">Your group · ${attr(g.label)}</p>` : ''}${groupHtml(g.items)}</section>`
-          : `<details class="cohort-material"><summary>${attr(g.label)}</summary><div class="prose">${groupHtml(g.items)}</div></details>`).join('');
+        $('material').innerHTML = html;
         embedVideos($('material'));
         $('material').querySelectorAll('a[data-tab]').forEach(a => a.addEventListener('click', e => {
           e.preventDefault();
-          if (a.dataset.tab === 'transcript') { select('watch'); showTranscript(true); $('transcript').scrollIntoView({ behavior: 'smooth' }); }
-          else select('watch');
+          select('watch');
+          if (a.dataset.tab === 'transcript') { showTranscript(true); $('transcript').scrollIntoView({ behavior: 'smooth' }); }
         }));
+        $('other-tables').hidden = !others.length;
+        drawOthers();
         // Reaching the end of your group's write-up counts as having read it.
-        if (hasMine) new IntersectionObserver((entries, obs) => {
+        if (talk || discussion) new IntersectionObserver((entries, obs) => {
           if (entries.some(e => e.isIntersecting)) { complete('read'); obs.disconnect(); }
         }).observe($('read-end'));
+      }
+
+      // Other groups' table discussions and prayers, folded under each group's name.
+      function drawOthers() {
+        const shown = readScope === 'all' ? others : readScope === 'church' ? others.filter(i => i.church_name === myChurchName) : [];
+        const groups = [];
+        for (const item of shown) {
+          const last = groups[groups.length - 1];
+          if (last?.cohort === item.cohort) last.items.push(item);
+          else groups.push({ cohort: item.cohort, label: `${item.church_name} · ${item.cohort_name}`, items: [item] });
+        }
+        $('other-material').innerHTML = readScope === 'cohort'
+          ? '<p class="meta">Choose <strong>My church</strong> or <strong>All participants</strong> to read what other groups discussed.</p>'
+          : groups.length
+            ? groups.map(g => `<details class="cohort-material"><summary>${attr(g.label)}</summary><div class="prose">${
+                discussionHtml(g.items.filter(i => i.kind === 'table'), g.items.filter(i => i.kind === 'prayers'))}</div></details>`).join('')
+            : `<p class="meta">No other groups ${readScope === 'church' ? 'in your church ' : ''}have shared table discussions for this part yet.</p>`;
       }
 
       // Watch: the standard transcript, with slides, under the video.

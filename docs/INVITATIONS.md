@@ -18,8 +18,8 @@ Everything below is on the site's **Admin** page (menu → Admin), which only ad
 suggested from the name; a cohort's ID is what goes in the CSV's `cohort` column.
 
 Each cohort has a **sharing** setting: **All participants** (the default), **Its church** or **Its cohort**. It
-decides who can read the cohort's session material (what was said, songs, table discussions, prayers) and caps
-how far its members can share their notes. Admins and that church's church admins can change it.
+decides who outside the cohort can read its table discussions and prayers, and caps how far its members can share
+their notes. (What was said and the songs are only ever shown to the cohort itself.) Admins and that church's church admins can change it.
 
 Each cohort has a **join link**: **Copy link** to send it to the church; **New link** replaces it (the old
 one stops working); untick **Needs approval** to let people from that link straight in.

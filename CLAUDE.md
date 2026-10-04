@@ -42,10 +42,12 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
 - **Shared vs per-cohort:** the teaching is shared by everyone (one standard video per session, slides, and a
   standard transcript shown under the video on the Watch tab). Each cohort's session material is its own: what was
   actually said (from audio recordings), songs (title, language, link, story), table write-ups and prayers, shown
-  on the Read tab. Views default to the person's own cohort, with My church / All participants options.
+  on the Read tab. Talks and songs are only ever shown to the cohort itself; only table write-ups and prayers (and
+  notes) can be read across cohorts (My cohort default / My church / All participants). Each session has standard
+  songs, used by a cohort that has none of its own for a part.
 - **Visibility:** notes are visible to everyone (default), my church, my cohort or only me, always without names.
   Each cohort has a sharing limit (everyone by default; admins or its church admins can narrow it to its church or
-  cohort) that applies to its session material and caps its members' notes. Notes for everyone need approval
+  cohort) that applies to its table write-ups and prayers and caps its members' notes. Notes for everyone need approval
   (by an admin, or a church admin for their church) before other churches see them.
 - **Anonymity:** in published content, everyone except Tim F Nash is anonymous. Tables are numbered, not named.
   It's fine to say that Session One was held at Freedom Church Jersey with members of that congregation.
