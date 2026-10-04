@@ -318,7 +318,10 @@ button.link.danger { color: var(--error-text); font-size: .85rem; }
 }
 .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .icon-btn:hover:not(:disabled) { background: var(--bg); color: var(--brand); }
-.icon-btn.danger:hover:not(:disabled) { color: var(--error-text); }
+/* The trash icon: no background square (button.danger is the red filled button used in dialogs). */
+button.icon-btn.danger, button.icon-btn.danger:hover { background: none; border: none; color: var(--text); }
+button.icon-btn.danger:hover:not(:disabled) { color: var(--error-text); }
+button.icon-btn.danger:disabled { color: var(--muted); opacity: .45; }
 .icon-btn:disabled { opacity: .35; cursor: default; }
 .role-toggle[data-role='church'] { color: var(--brand); }
 .role-toggle[data-role='admin'] { color: var(--accent); }
