@@ -2,8 +2,10 @@
 --
 -- * Each segment has a standard transcript (the written form of the standard video), shown on the Watch tab.
 -- * Each cohort has its own session material per segment: what was said ('talk'), songs ('song'),
---   table discussions ('table') and prayers ('prayers'), shown on the Read tab. Talks and songs are only
---   ever visible to the cohort itself; table discussions and prayers can be read across cohorts.
+--   table discussions ('table') and prayers ('prayers'), shown on the Read tab. Talks are only ever visible
+--   to the cohort itself; songs, table discussions and prayers can be read across cohorts.
+-- * Songs are edited on the Admin page: by admins (any cohort, and the standard songs) or church admins
+--   (their church's cohorts).
 -- * Each segment can have standard songs, shown to a cohort that has no songs of its own for that part.
 -- * Each cohort has a sharing limit (everyone by default, or its church, or just the cohort), set by
 --   admins or that church's church admins. It limits who can see the cohort's session material, and
@@ -89,13 +91,13 @@ create policy "members read session material they may see" on public.contributio
     or (exists (select 1 from public.cohorts c
                 where c.id = contributions.cohort
                   and (c.id = public.my_cohort()
-                       or (contributions.kind in ('table', 'prayers') and public.visible_to_me(c.church, c.id, c.share_limit))))
+                       or (contributions.kind in ('song', 'table', 'prayers') and public.visible_to_me(c.church, c.id, c.share_limit))))
         and exists (select 1 from public.segments g join public.sessions s on s.id = g.session
                     where g.id = contributions.segment and s.published_at is not null))
   );
 
 -- A segment's session material that I may see, with the cohort it came from: all of my own cohort's, plus
--- other cohorts' table discussions and prayers within p_scope: 'cohort' (default: just mine), 'church' or 'all'.
+-- other cohorts' songs, table discussions and prayers within p_scope: 'cohort' (default: just mine), 'church' or 'all'.
 -- My cohort comes first.
 create function public.session_material(p_segment text, p_scope text default 'cohort')
 returns table (id uuid, cohort text, cohort_name text, church_name text, mine boolean, kind text, item_position int,
@@ -115,7 +117,7 @@ as $$
   where x.segment = p_segment
     and (s.published_at is not null or public.is_admin())
     and (c.id = public.my_cohort()
-         or (x.kind in ('table', 'prayers') and public.visible_to_me(c.church, c.id, c.share_limit)))
+         or (x.kind in ('song', 'table', 'prayers') and public.visible_to_me(c.church, c.id, c.share_limit)))
     and case p_scope
           when 'cohort' then c.id = public.my_cohort()
           when 'church' then c.church = public.my_church()
@@ -124,6 +126,14 @@ as $$
   order by c.id = public.my_cohort() desc, ch.name, c.name,
            array_position(array['talk', 'song', 'table', 'prayers'], x.kind), x.position;
 $$;
+
+-- Church admins can add, change and remove songs for their church's cohorts (admins already manage everything).
+create policy "church admins manage their songs" on public.contributions
+  for all to authenticated
+  using (kind = 'song' and exists (select 1 from public.cohorts c
+                                   where c.id = contributions.cohort and public.can_manage_church(c.church)))
+  with check (kind = 'song' and exists (select 1 from public.cohorts c
+                                        where c.id = contributions.cohort and public.can_manage_church(c.church)));
 
 -- ---------------------------------------------------------------------------
 -- Notes: capped by the writer's cohort limit

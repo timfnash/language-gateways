@@ -27,12 +27,12 @@ session has its own folder under `cohorts/`.
 ```
 Sessions/fid-1/
   session.json                     the session and its parts: titles, summaries, slides, video times
-  songs.csv                        standard songs, shown to any cohort with no songs of its own for that part
+  songs.csv                        standard songs (optional: songs are usually edited on the Admin page)
   slides/                          slide-01.jpg, slide-02.jpg, … (the shared slides, in order)
   transcripts/fid-1-1.md …         the standard transcript of each part, shown under the video (Watch tab)
   cohorts/freedom-church-jersey-2026-09/
     talk/fid-1-1.md …              what was said with this cohort (Read tab)
-    songs.csv                      segment,title,translation,language,url,story
+    songs.csv                      segment,title,translation,language,url,story (optional, as above)
     tables/fid-1-3-1.md …          table write-ups: <part>-<table number>.md, shown as "Table 1" …
     prayers/fid-1-6-1.md …         prayers, named the same way
     what-people-said.md            kept for the welcome page
@@ -42,13 +42,13 @@ Sessions/fid-1/
   embeds a YouTube video (the ID is the part after `v=` in its link).
 - In a talk, `<!-- songs -->` marks where the cohort's songs go and `<!-- contributions -->` where its table
   write-ups and prayers go; without the markers they follow the talk.
-- **Songs** come from `songs.csv`, one row per song: the part (`segment`), the title as sung, an English
-  translation of the title, the language, the YouTube link and, optionally, the story behind it. Each shows as a
-  linked title with the video embedded beneath it. A cohort with no songs of its own for a part sees the
-  **standard** songs from the session's top-level `songs.csv`.
-- The Read tab only ever shows a person their own cohort's talk and songs. Other cohorts' **table discussions and
-  prayers** can be read too, under "Table discussions in other groups" (My cohort / My church / All participants),
-  within each cohort's **sharing** setting on the Admin page.
+- **Songs** are normally added and edited on the Admin page's **Songs** tab (see `docs/INVITATIONS.md`). A
+  `songs.csv` (one row per song: the part (`segment`), the title as sung, an English title, the language, the
+  YouTube link and, optionally, the story) can load them in bulk instead, but only with `--songs`, which replaces
+  any songs edited on the Admin page. A cohort with no songs of its own for a part sees the **standard** songs.
+- The Read tab shows a person their own cohort's talk. Other cohorts' **songs, table discussions and prayers** can
+  be seen too, under "From other groups" (My cohort / My church / All participants), within each cohort's
+  **sharing** setting on the Admin page.
 
 Parts can be split, added or reordered: change `session.json` (each part's `position`, slides and video times)
 and reload. Keep existing parts' `id`s, because people's progress and notes are stored against them; give new
@@ -81,5 +81,6 @@ To load just one cohort's material (say, after a new cohort has had the session)
 python3 pipeline/load_session.py Sessions/fid-1 --cohort individuals-october-2026
 ```
 
-Reloading is safe: it updates the parts, replaces each loaded cohort's material for the session, and overwrites
-the slides. People's progress and notes are kept.
+Reloading is safe: it updates the parts, replaces each loaded cohort's talks, table write-ups and prayers for the
+session, and overwrites the slides. Songs are left alone unless you add `--songs`. People's progress and notes are
+kept.

@@ -34,9 +34,9 @@
       <div id="material" class="prose"></div>
       <div id="read-end" aria-hidden="true"></div>
       <section class="other-tables" id="other-tables" hidden>
-        <h2>Table discussions in other groups</h2>
+        <h2>From other groups</h2>
         <fieldset class="choices compact ui" id="read-scope">
-          <legend>Show table discussions from</legend>
+          <legend>Show songs and table discussions from</legend>
           <label><input type="radio" name="read-scope" value="cohort"> My cohort</label>
           <label><input type="radio" name="read-scope" value="church"> My church</label>
           <label><input type="radio" name="read-scope" value="all"> All participants</label>
@@ -200,7 +200,7 @@
         }
       }
 
-      // Read: my group's material (what was said, songs, table discussions, prayers). Other groups' table
+      // Read: my group's material (what was said, songs, table discussions, prayers). Other groups' songs, table
       // discussions and prayers can be added below, by church or for all participants (my cohort only by default).
       let readScope = 'cohort';
       try { readScope = localStorage.getItem('fid-read-scope') || 'cohort'; } catch {}
@@ -283,7 +283,7 @@
         }).observe($('read-end'));
       }
 
-      // Other groups' table discussions and prayers, folded under each group's name.
+      // Other groups' songs, table discussions and prayers, folded under each group's name.
       function drawOthers() {
         const shown = readScope === 'all' ? others : readScope === 'church' ? others.filter(i => i.church_name === myChurchName) : [];
         const groups = [];
@@ -293,11 +293,16 @@
           else groups.push({ cohort: item.cohort, label: `${item.church_name} · ${item.cohort_name}`, items: [item] });
         }
         $('other-material').innerHTML = readScope === 'cohort'
-          ? '<p class="meta">Choose <strong>My church</strong> or <strong>All participants</strong> to read what other groups discussed.</p>'
+          ? '<p class="meta">Choose <strong>My church</strong> or <strong>All participants</strong> to see other groups’ songs and table discussions.</p>'
           : groups.length
-            ? groups.map(g => `<details class="cohort-material"><summary>${attr(g.label)}</summary><div class="prose">${
-                discussionHtml(g.items.filter(i => i.kind === 'table'), g.items.filter(i => i.kind === 'prayers'))}</div></details>`).join('')
-            : `<p class="meta">No other groups ${readScope === 'church' ? 'in your church ' : ''}have shared table discussions for this part yet.</p>`;
+            ? groups.map(g => {
+                const songs = g.items.filter(i => i.kind === 'song');
+                return `<details class="cohort-material"><summary>${attr(g.label)}</summary><div class="prose">${
+                  songs.length ? '<h2>Songs</h2>' + songs.map(songHtml).join('') : ''}${
+                  discussionHtml(g.items.filter(i => i.kind === 'table'), g.items.filter(i => i.kind === 'prayers'))}</div></details>`;
+              }).join('')
+            : `<p class="meta">No other groups ${readScope === 'church' ? 'in your church ' : ''}have shared anything for this part yet.</p>`;
+        embedVideos($('other-material'));
       }
 
       // Watch: the standard transcript, with slides, under the video.

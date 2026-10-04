@@ -298,8 +298,17 @@ dialog.ask input { margin-top: 8px; }
 .ask-buttons button { margin-top: 16px; }
 button.danger { background: var(--error-text); border-color: var(--error-text); }
 button.danger:hover { background: #6d150e; border-color: #6d150e; }
+button.link.danger, button.link.danger:hover { background: none; border: none; padding: 0; color: var(--error-text); }
 
 /* Admin page */
+.song-admin { list-style: none; padding: 0; margin: 0 0 20px; display: grid; gap: 10px; }
+.song-admin li { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;
+  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 12px; padding: 12px 16px; }
+.song-admin li p.meta { margin: 4px 0 0; font-size: .85rem; }
+.song-admin-actions { display: flex; gap: 12px; white-space: nowrap; }
+.song-admin-actions button.link { font-size: .9rem; text-decoration: none; }
+.song-admin-actions button.link:disabled { opacity: .3; }
+#s-form h2 { margin-top: 0; }
 .filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 12px; }
 .filters label { margin: 0; flex: 1 1 12rem; }
 .filters select, .filters input { margin-top: 6px; }

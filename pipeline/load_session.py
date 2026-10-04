@@ -5,6 +5,10 @@
     python3 pipeline/load_session.py Sessions/fid-1 --publish    # load and publish to members
     python3 pipeline/load_session.py Sessions/fid-1 --cohort freedom-church-jersey-2026-09
                                                                  # load just that cohort's material
+    python3 pipeline/load_session.py Sessions/fid-1 --songs      # also (re)load songs from the songs.csv files
+
+Songs are normally edited on the Admin page, so a reload leaves them alone; --songs replaces the songs of each
+loaded cohort (and the standard songs) with the contents of the songs.csv files.
 
 Folder layout (see docs/LOADING-SESSIONS.md):
 
@@ -153,6 +157,7 @@ def main():
     ap.add_argument('--check', action='store_true', help='validate the folder without loading anything')
     ap.add_argument('--publish', action='store_true', help='make the session visible to members')
     ap.add_argument('--cohort', help="load only this cohort's material (not the shared parts)")
+    ap.add_argument('--songs', action='store_true', help='also replace songs with the songs.csv files (overwrites Admin edits)')
     args = ap.parse_args()
 
     folder = args.folder.expanduser()
@@ -196,7 +201,7 @@ def main():
         rows = [{
             'id': seg['id'], 'session': session['id'], 'position': seg['position'], 'title': seg['title'],
             'summary': seg['summary'], 'transcript': seg['transcript_text'], 'body': seg['transcript_text'],
-            'songs': seg['songs'],
+            **({'songs': seg['songs']} if args.songs else {}),
             'slides': [f"{session['id']}/{name}" for name in seg['slides']],
             'youtube_start': seg['youtube_start'], 'youtube_end': seg['youtube_end'],
         } for seg in manifest['segments']]
@@ -208,8 +213,11 @@ def main():
     for cohort, items in cohorts.items():
         if args.cohort and cohort != args.cohort:
             continue
-        db.request('DELETE', f"/rest/v1/contributions?cohort=eq.{cohort}&segment=in.({ids})")
-        rows = [{'cohort': cohort, 'url': None, 'language': None, 'translation': None, **i} for i in items]
+        # Songs are edited on the Admin page; only --songs replaces them.
+        kinds = 'talk,song,table,prayers' if args.songs else 'talk,table,prayers'
+        db.request('DELETE', f"/rest/v1/contributions?cohort=eq.{cohort}&segment=in.({ids})&kind=in.({kinds})")
+        rows = [{'cohort': cohort, 'url': None, 'language': None, 'translation': None, **i}
+                for i in items if args.songs or i['kind'] != 'song']
         if rows:
             db.request('POST', '/rest/v1/contributions', rows, {'Prefer': 'return=minimal'})
         loaded += len(rows)
@@ -220,7 +228,8 @@ def main():
         published = db.request('GET', f"/rest/v1/sessions?id=eq.{session['id']}&select=published_at")[0]['published_at']
         state = 'updated (still published)' if published else 'loaded as a draft (only admins can see it; re-run with --publish)'
     what = f"{len(manifest['segments'])} parts, {len(slides)} slides, " if not args.cohort else ''
-    print(f"Session {session['number']} {state}: {what}{loaded} items of session material.")
+    print(f"Session {session['number']} {state}: {what}{loaded} items of session material"
+          + (", songs replaced from songs.csv." if args.songs else " (songs left as they are; use --songs to load them)."))
 
 
 if __name__ == '__main__':
