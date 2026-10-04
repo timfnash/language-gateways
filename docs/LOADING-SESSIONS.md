@@ -37,8 +37,11 @@ Sessions/fid-1/
     what-people-said.md            kept for the welcome page
 ```
 
-- In a transcript or talk, `![caption](slide:3)` shows that part's third slide and `![caption](youtube:VIDEO-ID)`
-  embeds a YouTube video (the ID is the part after `v=` in its link).
+- In a transcript or talk, `![caption](slide:3)` shows that part's third slide.
+- **Extra videos** (3rd-party clips and the like) are written `![caption](youtube:VIDEO-ID)` (the ID is the part
+  after `v=` in its link). The rule: **extra video is embedded on the Watch tab, under the part's own video**
+  (under "More to watch"), **and is just a link in the text** (the transcript and the Read tab). Put the marker in
+  the standard transcript for a clip everyone sees, or in a cohort's talk for one only that cohort sees.
 - In a talk, `<!-- songs -->` marks where the cohort's songs go and `<!-- contributions -->` where its table
   write-ups and prayers go; without the markers they follow the talk.
 - **Songs.** A cohort's songs go in its `songs.csv`, one row per song in the order sung: the part (`segment`, the

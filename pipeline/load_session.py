@@ -7,8 +7,9 @@
                                                                  # load just that cohort's material
     python3 pipeline/load_session.py Sessions/fid-1 --check-links   # also check each song's YouTube link (needs internet)
 
-Every load checks the songs' YouTube links first (and stops if one is wrong), printing each video's YouTube title
-so you can see it's the right song.
+Every load checks every video's YouTube link first (songs, and any ![caption](youtube:ID) in a transcript or talk),
+and stops if one is wrong, printing each video's YouTube title
+so you can see it's the right one.
 
 Folder layout (see docs/LOADING-SESSIONS.md):
 
@@ -63,27 +64,44 @@ OEMBED_PROBLEMS = {
 }
 
 
-def verify_links(cohorts):
-    """Look each song up on YouTube. Prints its YouTube title; returns (problems, couldn't-check count)."""
-    problems, unchecked = [], 0
+def collect_videos(manifest, cohorts):
+    """Every video that will be shown: songs, and ![caption](youtube:ID) in transcripts and talks."""
+    found = []
+    for seg in manifest['segments']:
+        for cap, vid in re.findall(r'!\[([^\]]*)\]\(youtube:([^)]*)\)', seg['transcript_text']):
+            found.append((f"{seg['id']} transcript: {cap.strip() or vid}", vid, f'https://www.youtube.com/watch?v={vid}'))
     for cohort, items in cohorts.items():
         for item in items:
-            if item['kind'] != 'song':
-                continue
-            vid = youtube_id(item['url'])
+            if item['kind'] == 'song':
+                found.append((item['title'], youtube_id(item['url']), item['url']))
+            for cap, vid in re.findall(r'!\[([^\]]*)\]\(youtube:([^)]*)\)', item['body']) if item['kind'] == 'talk' else []:
+                found.append((f"{item['segment']} talk: {cap.strip() or vid}", vid, f'https://www.youtube.com/watch?v={vid}'))
+    return found
+
+
+def verify_links(videos):
+    """Look each video up on YouTube. Prints its YouTube title; returns (problems, couldn't-check count)."""
+    problems, unchecked, cache = [], 0, {}
+    for label, vid, url in videos:
+        if vid not in cache:
             link = urllib.parse.quote(f'https://www.youtube.com/watch?v={vid}', safe='')
             req = urllib.request.Request(f'https://www.youtube.com/oembed?url={link}&format=json')
             try:
                 with urllib.request.urlopen(req, context=SSL, timeout=15) as r:
-                    info = json.loads(r.read().decode())
-                print(f"  {item['title']}  →  YouTube: \"{info.get('title')}\" ({info.get('author_name')})  ✓ plays on this site")
+                    cache[vid] = ('ok', json.loads(r.read().decode()))
             except urllib.error.HTTPError as e:
-                why = OEMBED_PROBLEMS.get(e.code, f'YouTube answered {e.code}')
-                print(f"  {item['title']}  →  ✗ {why}")
-                problems.append(f"{cohort}: {item['title']}: {item['url']}: {why}")
+                cache[vid] = ('bad', OEMBED_PROBLEMS.get(e.code, f'YouTube answered {e.code}'))
             except Exception as e:
-                print(f"  {item['title']}  →  (couldn't reach YouTube to check: {e})")
-                unchecked += 1
+                cache[vid] = ('offline', str(e))
+        kind, info = cache[vid]
+        if kind == 'ok':
+            print(f"  {label}  →  YouTube: \"{info.get('title')}\" ({info.get('author_name')})  ✓ plays on this site")
+        elif kind == 'bad':
+            print(f"  {label}  →  ✗ {info}")
+            problems.append(f"{label}: {url}: {info}")
+        else:
+            print(f"  {label}  →  (couldn't reach YouTube to check: {info})")
+            unchecked += 1
     return problems, unchecked
 
 
@@ -191,7 +209,7 @@ def main():
     ap.add_argument('--check', action='store_true', help='validate the folder without loading anything')
     ap.add_argument('--publish', action='store_true', help='make the session visible to members')
     ap.add_argument('--cohort', help="load only this cohort's material (not the shared parts)")
-    ap.add_argument('--check-links', action='store_true', help="with --check: also look up each song's YouTube link")
+    ap.add_argument('--check-links', action='store_true', help="with --check: also look up each video's YouTube link")
     args = ap.parse_args()
 
     folder = args.folder.expanduser()
@@ -209,11 +227,12 @@ def main():
     if problems:
         sys.exit('Problems:\n  ' + '\n  '.join(problems))
     if not args.check or args.check_links:
-        if any(i['kind'] == 'song' for items in cohorts.values() for i in items):
-            print('Checking song links on YouTube:')
-            bad, unchecked = verify_links(cohorts)
+        videos = collect_videos(manifest, cohorts)
+        if videos:
+            print('Checking video links on YouTube:')
+            bad, unchecked = verify_links(videos)
             if bad:
-                sys.exit('Problems with song links:\n  ' + '\n  '.join(bad))
+                sys.exit('Problems with video links:\n  ' + '\n  '.join(bad))
             if unchecked:
                 print(f"  ({unchecked} link(s) couldn't be checked: no connection to YouTube. Carrying on.)")
     if args.check:
