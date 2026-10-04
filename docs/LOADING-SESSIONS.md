@@ -42,6 +42,8 @@ Sessions/fid-1/
   embeds a YouTube video (the ID is the part after `v=` in its link).
 - In a talk, `<!-- songs -->` marks where the cohort's songs go and `<!-- contributions -->` where its table
   write-ups and prayers go; without the markers they follow the talk.
+- Each session's **songs part** is the first part with "song" in its title (e.g. "Songs in three languages"); keep
+  that word in its title so the Admin page puts songs there.
 - **Songs** are normally added and edited on the Admin page's **Songs** tab (see `docs/INVITATIONS.md`). A
   `songs.csv` (one row per song: the part (`segment`), the title as sung, an English title, the language, the
   YouTube link and, optionally, the story) can load them in bulk instead, but only with `--songs`, which replaces
