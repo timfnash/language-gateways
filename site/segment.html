@@ -18,18 +18,36 @@
 
     <div class="tabs ui" role="tablist" id="tabs" hidden></div>
 
-    <section id="panel-read" class="prose" role="tabpanel" hidden>
-      <div id="body"></div>
-      <div id="read-end" aria-hidden="true"></div>
-    </section>
-
     <section id="panel-watch" role="tabpanel" hidden>
+      <p class="tab-intro">Watch the video for this part of the course. You can also read a transcript, add your own
+        reflections and read those of others.</p>
       <div class="video"><div id="player"></div></div>
       <p class="meta" id="watch-note"></p>
       <p class="message ok ui" id="watch-end" hidden></p>
+      <p class="ui"><button type="button" class="secondary" id="toggle-transcript" aria-expanded="false" aria-controls="transcript">Show transcript</button></p>
+      <section class="prose transcript" id="transcript" hidden></section>
+    </section>
+
+    <section id="panel-read" role="tabpanel" hidden>
+      <p class="tab-intro">Read what was said and shared in your group for this part. You can also add your own
+        reflections and read those of others.</p>
+      <div id="material" class="prose"></div>
+      <div id="read-end" aria-hidden="true"></div>
+      <section class="other-tables" id="other-tables" hidden>
+        <h2>From other groups</h2>
+        <fieldset class="choices compact ui" id="read-scope">
+          <legend>Show songs and table discussions from</legend>
+          <label><input type="radio" name="read-scope" value="cohort"> My cohort</label>
+          <label><input type="radio" name="read-scope" value="church"> My church</label>
+          <label><input type="radio" name="read-scope" value="all"> All participants</label>
+        </fieldset>
+        <div id="other-material"></div>
+      </section>
     </section>
 
     <section id="panel-slides" role="tabpanel" hidden>
+      <p class="tab-intro">View the slides for this part of the course. You can also add your own reflections and
+        read those of others.</p>
       <figure class="carousel">
         <img id="slide" alt="">
         <figcaption class="ui carousel-bar">
@@ -59,9 +77,9 @@
       <h2>Notes from participants</h2>
       <fieldset class="choices compact" id="scope">
         <legend>Show notes from</legend>
-        <label><input type="radio" name="scope" value="all"> All participants</label>
-        <label><input type="radio" name="scope" value="church"> My church</label>
         <label><input type="radio" name="scope" value="cohort"> My cohort</label>
+        <label><input type="radio" name="scope" value="church"> My church</label>
+        <label><input type="radio" name="scope" value="all"> All participants</label>
         <label><input type="radio" name="scope" value="mine"> Only me</label>
       </fieldset>
       <ul class="note-list" id="note-list"></ul>
@@ -106,15 +124,43 @@
       $('title').innerHTML = partTitle(seg, DOMPurify.sanitize);
       $('summary').textContent = seg.summary ?? '';
 
-      const [{ data: full }, { data: contributions }, urls] = await Promise.all([
-        supabase.from('segments').select('body').eq('id', seg.id).single(),
-        supabase.from('contributions').select('kind, title, body, position').eq('segment', seg.id).order('kind').order('position'),
+      const [{ data: full }, { data: myCohort }, urls] = await Promise.all([
+        supabase.from('segments').select('transcript, songs').eq('id', seg.id).single(),
+        supabase.from('cohorts').select('share_limit').eq('id', profile.cohort).maybeSingle(),
         signedUrls(seg.slides),
       ]);
 
-      // Which ways of taking in this segment are available.
-      const available = ['read'];
+      // Markdown with ![caption](slide:N) for this part's Nth slide and ![caption](youtube:ID) for a video.
+      const attr = t => String(t ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      const markdown = md => render(String(md ?? '')
+        .replace(/!\[([^\]]*)\]\(youtube:([A-Za-z0-9_-]{6,20})\)/g, (m, caption, id) => `<div data-youtube="${id}" data-caption="${attr(caption)}"></div>`)
+        .replace(/\]\(slide:(\d+)\)/g, (m, n) => `](${urls[seg.slides[n - 1]] ?? ''})`));
+      const youtubeId = url => (String(url ?? '').match(/(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,20})/) ?? [])[1];
+      function embedVideos(container) {
+        for (const el of container.querySelectorAll('[data-youtube]')) {
+          const figure = document.createElement('figure');
+          figure.className = 'embed';
+          const frame = document.createElement('iframe');
+          frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(el.dataset.youtube)}?rel=0`;
+          frame.title = el.dataset.caption || 'Video';
+          frame.loading = 'lazy';
+          frame.allow = 'accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen';
+          frame.allowFullscreen = true;
+          frame.referrerPolicy = 'strict-origin-when-cross-origin';
+          figure.append(frame);
+          if (el.dataset.caption) {
+            const caption = document.createElement('figcaption');
+            caption.textContent = el.dataset.caption;
+            figure.append(caption);
+          }
+          el.replaceWith(figure);
+        }
+      }
+
+      // Which ways of taking in this part are available: Watch first (the shared core), then Read, then Slides.
+      const available = [];
       if (session.youtube_id && seg.youtube_start != null) available.push('watch');
+      available.push('read');
       if (seg.slides.length) available.push('slides');
 
       const mine = progress[seg.id] ?? {};
@@ -154,44 +200,126 @@
         }
       }
 
+      // Read: my group's material (what was said, songs, table discussions, prayers). Other groups' songs, table
+      // discussions and prayers can be added below, by church or for all participants (my cohort only by default).
+      let readScope = 'cohort';
+      try { readScope = localStorage.getItem('fid-read-scope') || 'cohort'; } catch {}
+      const readScopeInputs = [...document.querySelectorAll('input[name="read-scope"]')];
+      let others = [], myChurchName = null;
       function setupRead() {
-        // ![caption](slide:N) shows this part's Nth slide; ![caption](youtube:ID) embeds a YouTube video.
-        const attr = t => t.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-        const body = (full?.body ?? '')
-          .replace(/!\[([^\]]*)\]\(youtube:([A-Za-z0-9_-]{6,20})\)/g, (m, caption, id) => `<div data-youtube="${id}" data-caption="${attr(caption)}"></div>`)
-          .replace(/\]\(slide:(\d+)\)/g, (m, n) => `](${urls[seg.slides[n - 1]] ?? ''})`);
-        // Table write-ups and prayers go where the body marks <!-- contributions -->, or at the end.
-        const [before, after = ''] = body.split('<!-- contributions -->');
-        const group = (kind, heading) => {
-          const items = (contributions ?? []).filter(c => c.kind === kind);
-          return items.length
-            ? `<h2>${heading}</h2>` + items.map(c => `<h3>${DOMPurify.sanitize(c.title)}</h3>${render(c.body)}`).join('')
-            : '';
-        };
-        $('body').innerHTML = render(before) + group('table', 'At the tables') + group('prayers', 'Prayers from the tables') + render(after);
-        for (const el of $('body').querySelectorAll('[data-youtube]')) {
-          const figure = document.createElement('figure');
-          figure.className = 'embed';
-          const frame = document.createElement('iframe');
-          frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(el.dataset.youtube)}?rel=0`;
-          frame.title = el.dataset.caption || 'Video';
-          frame.loading = 'lazy';
-          frame.allow = 'accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen';
-          frame.allowFullscreen = true;
-          frame.referrerPolicy = 'strict-origin-when-cross-origin';
-          figure.append(frame);
-          if (el.dataset.caption) {
-            const caption = document.createElement('figcaption');
-            caption.textContent = el.dataset.caption;
-            figure.append(caption);
-          }
-          el.replaceWith(figure);
+        readScopeInputs.forEach(i => {
+          i.checked = i.value === readScope;
+          i.addEventListener('change', () => {
+            readScope = i.value;
+            try { localStorage.setItem('fid-read-scope', readScope); } catch {}
+            drawOthers();
+          });
+        });
+        loadMaterial();
+      }
+
+      function songHtml(song) {
+        const id = youtubeId(song.url);
+        const label = [song.translation && `(${song.translation})`, song.language].filter(Boolean).join(' · ');
+        return `<div class="song">
+          <h3><a href="${attr(song.url)}" target="_blank" rel="noopener">${attr(song.title)}</a>${label ? ` <span class="song-meta">${attr(label)}</span>` : ''}</h3>
+          ${id ? `<div data-youtube="${id}" data-caption=""></div>` : ''}
+          ${song.body ? markdown(song.body) : ''}
+        </div>`;
+      }
+
+      const discussionHtml = (tables, prayers) =>
+        (tables.length ? '<h2>At the tables</h2>' + tables.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '') +
+        (prayers.length ? '<h2>Prayers from the tables</h2>' + prayers.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '');
+
+      async function loadMaterial() {
+        $('material').innerHTML = '<p class="meta">Loading…</p>';
+        const [{ data, error }, { data: church }] = await Promise.all([
+          supabase.rpc('session_material', { p_segment: seg.id, p_scope: 'all' }),
+          supabase.from('churches').select('name').eq('id', profile.church).maybeSingle(),
+        ]);
+        if (error) { $('material').innerHTML = `<p class="message error">${attr(error.message)}</p>`; return; }
+        myChurchName = church?.name;
+        const mine = data.filter(i => i.mine);
+        others = data.filter(i => !i.mine);
+        const of = kind => mine.filter(i => i.kind === kind);
+        const talk = of('talk').map(t => t.body).join('\n\n');
+        // My group's songs, or the standard songs for this part if my group has none.
+        const songList = of('song').length ? of('song') : (full?.songs ?? []).map(s => ({ ...s, body: s.story }));
+        const songs = songList.map(songHtml).join('');
+        const discussion = discussionHtml(of('table'), of('prayers'));
+
+        let html = '';
+        if (!talk && !discussion) {
+          const watchLink = available.includes('watch')
+            ? '<a href="#watch" data-tab="watch">watch this part</a> or <a href="#watch" data-tab="transcript">read its transcript</a>'
+            : '<a href="#watch" data-tab="transcript">read the transcript</a>';
+          html += `<div class="card empty-material"><p><strong>Your group hasn’t had this session yet</strong>, or nothing
+            has been added for it.</p><p class="meta">You can ${watchLink}.</p></div>`;
+          if (songs) html += '<h2>Songs</h2>' + songs;
+        } else {
+          // Songs go where the talk marks <!-- songs -->, table write-ups where it marks <!-- contributions -->;
+          // otherwise they follow the talk. (The sanitiser drops HTML comments, so swap the markers for
+          // placeholder paragraphs before rendering.)
+          html = markdown(talk.replace('<!-- songs -->', '\n\nFIDSONGSHERE\n\n').replace('<!-- contributions -->', '\n\nFIDTABLESHERE\n\n'));
+          const placed = { songs: false, discussion: false };
+          html = html.replace('<p>FIDSONGSHERE</p>', () => { placed.songs = true; return songs; });
+          html = html.replace('<p>FIDTABLESHERE</p>', () => { placed.discussion = true; return discussion; });
+          if (!placed.songs && songs) html += (talk ? '<h2>Songs</h2>' : '') + songs;
+          if (!placed.discussion) html += discussion;
         }
-        // Reaching the end of the write-up counts as having read it.
-        new IntersectionObserver((entries, obs) => {
+        $('material').innerHTML = html;
+        embedVideos($('material'));
+        $('material').querySelectorAll('a[data-tab]').forEach(a => a.addEventListener('click', e => {
+          e.preventDefault();
+          select('watch');
+          if (a.dataset.tab === 'transcript') { showTranscript(true); $('transcript').scrollIntoView({ behavior: 'smooth' }); }
+        }));
+        $('other-tables').hidden = !others.length;
+        drawOthers();
+        // Reaching the end of your group's write-up counts as having read it.
+        if (talk || discussion) new IntersectionObserver((entries, obs) => {
           if (entries.some(e => e.isIntersecting)) { complete('read'); obs.disconnect(); }
         }).observe($('read-end'));
       }
+
+      // Other groups' songs, table discussions and prayers, folded under each group's name.
+      function drawOthers() {
+        const shown = readScope === 'all' ? others : readScope === 'church' ? others.filter(i => i.church_name === myChurchName) : [];
+        const groups = [];
+        for (const item of shown) {
+          const last = groups[groups.length - 1];
+          if (last?.cohort === item.cohort) last.items.push(item);
+          else groups.push({ cohort: item.cohort, label: `${item.church_name} · ${item.cohort_name}`, items: [item] });
+        }
+        $('other-material').innerHTML = readScope === 'cohort'
+          ? '<p class="meta">Choose <strong>My church</strong> or <strong>All participants</strong> to see other groups’ songs and table discussions.</p>'
+          : groups.length
+            ? groups.map(g => {
+                const songs = g.items.filter(i => i.kind === 'song');
+                return `<details class="cohort-material"><summary>${attr(g.label)}</summary><div class="prose">${
+                  songs.length ? '<h2>Songs</h2>' + songs.map(songHtml).join('') : ''}${
+                  discussionHtml(g.items.filter(i => i.kind === 'table'), g.items.filter(i => i.kind === 'prayers'))}</div></details>`;
+              }).join('')
+            : `<p class="meta">No other groups ${readScope === 'church' ? 'in your church ' : ''}have shared anything for this part yet.</p>`;
+        embedVideos($('other-material'));
+      }
+
+      // Watch: the standard transcript, with slides, under the video.
+      let transcriptDrawn = false;
+      function showTranscript(open) {
+        if (open && !transcriptDrawn) {
+          $('transcript').innerHTML = (full?.transcript ?? '').trim()
+            ? markdown(full.transcript.replaceAll('<!-- contributions -->', '').replaceAll('<!-- songs -->', ''))
+            : '<p class="meta">The transcript for this part isn’t available yet.</p>';
+          embedVideos($('transcript'));
+          transcriptDrawn = true;
+        }
+        $('transcript').hidden = !open;
+        $('toggle-transcript').setAttribute('aria-expanded', String(open));
+        $('toggle-transcript').textContent = open ? 'Hide transcript' : 'Show transcript';
+      }
+      $('toggle-transcript').addEventListener('click', () => showTranscript($('transcript').hidden));
 
       function setupWatch() {
         $('watch-note').textContent = `This part runs from ${formatTime(seg.youtube_start)}`
@@ -262,7 +390,8 @@
         go(0);
       }
 
-      // My note: one per part, saved as you type, shared as I choose (all participants by default).
+      // My note: one per part, saved as you type, shared as I choose (all participants by default,
+      // within my cohort's limit).
       // Shared notes are shown without names; notes for all participants reach other churches once approved.
       const note = $('note'), status = $('note-status');
       const SHARE_HELP = {
@@ -275,8 +404,18 @@
       const sharing = () => shareInputs.find(i => i.checked)?.value ?? 'everyone';
       const { data: saved } = await supabase.from('notes').select('body, visibility').eq('segment', seg.id).maybeSingle();
       note.value = saved?.body ?? '';
-      const showShare = v => { shareInputs.forEach(i => { i.checked = i.value === v; }); $('share-help').textContent = SHARE_HELP[v]; };
-      showShare(saved?.visibility ?? 'everyone');
+      // Your cohort may limit how far notes can be shared; choices beyond the limit are switched off.
+      const LEVELS = ['me', 'cohort', 'church', 'everyone'];
+      const limit = myCohort?.share_limit ?? 'everyone';
+      const capped = v => LEVELS.indexOf(v) <= LEVELS.indexOf(limit) ? v : limit;
+      const LIMIT_NOTE = { church: 'Your church has chosen to keep notes within the church.',
+                           cohort: 'Your church has chosen to keep notes within each cohort.' };
+      shareInputs.forEach(i => { i.disabled = LEVELS.indexOf(i.value) > LEVELS.indexOf(limit); });
+      const showShare = v => {
+        shareInputs.forEach(i => { i.checked = i.value === v; });
+        $('share-help').textContent = SHARE_HELP[v] + (LIMIT_NOTE[limit] ? ` ${LIMIT_NOTE[limit]}` : '');
+      };
+      showShare(capped(saved?.visibility ?? 'everyone'));
       $('notes').hidden = false;
 
       let saveTimer = null, lastSaved = `${note.value}\u0000${sharing()}`;
@@ -299,8 +438,8 @@
 
       // Notes from participants, filtered by scope (all participants by default; remembered on this device).
       const scopeInputs = [...document.querySelectorAll('input[name="scope"]')];
-      let scope = 'all';
-      try { scope = localStorage.getItem('fid-note-scope') || 'all'; } catch {}
+      let scope = 'cohort';
+      try { scope = localStorage.getItem('fid-notes-scope') || 'cohort'; } catch {}
       scopeInputs.forEach(i => { i.checked = i.value === scope; });
       const when = d => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
       async function loadOthers() {
@@ -314,7 +453,7 @@
       }
       scopeInputs.forEach(i => i.addEventListener('change', () => {
         scope = i.value;
-        try { localStorage.setItem('fid-note-scope', scope); } catch {}
+        try { localStorage.setItem('fid-notes-scope', scope); } catch {}
         loadOthers();
       }));
       loadOthers();
@@ -338,7 +477,7 @@
         (next ? `<a class="next" href="segment.html?id=${next.id}">${partTitle(next, DOMPurify.sanitize)} →</a>` : '<a class="next" href="home.html">Back to the course</a>');
 
       const wanted = location.hash.slice(1);
-      select(available.includes(wanted) ? wanted : 'read');
+      select(available.includes(wanted) ? wanted : available[0]);
     }
   </script>
   <script type="module" src="assets/header.js"></script>
