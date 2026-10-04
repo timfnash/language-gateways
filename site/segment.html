@@ -265,7 +265,8 @@
         };
         let html = '';
         if (clips.length) html += '<h2>More to watch</h2>' + clips.map(clipHtml).join('');
-        if (songs.length) html += '<h2>Songs</h2>' + songs.map(songHtml).join('');
+        // No "Songs" heading: the part itself is called Songs.
+        if (songs.length) html += songs.map(songHtml).join('');
         else if (isSongsPart) {
           const shared = data.some(i => !i.mine && i.kind === 'song');
           html += `<div class="card empty-material"><p><strong>Your group hasn’t had this session yet</strong>,
