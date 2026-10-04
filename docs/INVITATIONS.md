@@ -26,9 +26,9 @@ one stops working); untick **Needs approval** to let people from that link strai
 
 ## Songs
 
-**Songs** tab: choose a cohort and a part, then add, edit, reorder (↑ ↓) or delete its songs: the title as sung, an
-English title, the language, a YouTube link and, optionally, the story behind it. Changes show straight away on
-that part's Read tab. A cohort with no songs of its own for a part sees the **Standard** songs, which admins edit by
+**Songs** tab: choose a cohort and a session, then add, edit, reorder (↑ ↓) or delete its songs: the title as sung,
+an English title, the language, a YouTube link and, optionally, the story behind it. They show straight away on the
+Read tab of the session's songs part (the first part with "song" in its title). A cohort with no songs of its own for a part sees the **Standard** songs, which admins edit by
 choosing "Standard" as the cohort. Church admins can edit their own church's cohorts.
 
 ## Requests to join

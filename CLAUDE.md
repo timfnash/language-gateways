@@ -43,7 +43,8 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   standard transcript shown under the video on the Watch tab). Each cohort's session material is its own: what was
   actually said (from audio recordings), songs (title, language, link, story), table write-ups and prayers, shown
   on the Read tab. Talks are only ever shown to the cohort itself; songs, table write-ups and prayers (and notes) can
-  be read across cohorts (My cohort default / My church / All participants). Songs are edited on the Admin page
+  be read across cohorts (My cohort default / My church / All participants). Songs are edited on the Admin page by cohort and
+  session, and go on the session's songs part (the first part with "song" in its title)
   (admins: any cohort and the standard songs; church admins: their church's cohorts); a cohort with none of its
   own for a part sees the standard songs. The loader only touches songs with `--songs`.
 - **Visibility:** notes are visible to everyone (default), my church, my cohort or only me, always without names.

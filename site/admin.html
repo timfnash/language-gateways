@@ -89,11 +89,11 @@
     </section>
 
     <section id="panel-songs" role="tabpanel" class="ui" hidden>
-      <p class="lead">Songs appear on a part’s Read tab, each as a linked title with its video. Each cohort can have its
-        own; a cohort with none for a part sees the <strong>standard</strong> songs. Changes show straight away.</p>
+      <p class="lead">Each session’s songs appear on the Read tab of its songs part, each as a linked title with its video.
+        Each cohort can have its own; a cohort with none sees the <strong>standard</strong> songs. Changes show straight away.</p>
       <div class="filters">
         <label>Cohort <select id="s-cohort"></select></label>
-        <label>Part <select id="s-part"></select></label>
+        <label>Session <select id="s-part"></select></label>
       </div>
       <p class="meta" id="s-note"></p>
       <ol class="song-admin" id="s-list"></ol>
@@ -563,16 +563,21 @@
       let parts = [], songs = [], editing = null;
       const YT = /(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,20})/;
 
+      // Songs belong to a session's songs part: the first part with "song" in its title (or else its first part).
       async function setupSongs() {
         const { data: sessions } = await supabase.from('sessions')
           .select('id, number, title, segments (id, position, title, songs)').order('number');
-        parts = (sessions ?? []).flatMap(se => se.segments.sort((a, b) => a.position - b.position)
-          .map((g, i) => ({ ...g, label: `Session ${se.number} · ${i + 1}/${se.segments.length} ${g.title}` })));
+        parts = (sessions ?? []).map(se => {
+          const segs = se.segments.sort((a, b) => a.position - b.position);
+          const i = Math.max(0, segs.findIndex(g => /song/i.test(g.title)));
+          return segs.length ? { ...segs[i], label: `Session ${se.number}: ${se.title}`,
+                                 where: `${i + 1}/${segs.length} ${segs[i].title}` } : null;
+        }).filter(Boolean);
         $('s-cohort').innerHTML = (isAdmin ? `<option value="${STANDARD}">Standard (for cohorts with none of their own)</option>` : '')
           + options(cohorts, cohortLabel);
         $('s-part').innerHTML = parts.map(g => `<option value="${esc(g.id)}">${esc(g.label)}</option>`).join('');
-        const songPart = parts.find(g => g.songs?.length) ?? parts.find(g => /song/i.test(g.title));
-        if (songPart) $('s-part').value = songPart.id;
+        // Open on the latest session.
+        if (parts.length) $('s-part').value = parts[parts.length - 1].id;
         $('s-cohort').addEventListener('change', loadSongs);
         $('s-part').addEventListener('change', loadSongs);
         loadSongs();
@@ -594,9 +599,9 @@
           songs = data ?? [];
         }
         const standardCount = part().songs?.length ?? 0;
-        $('s-note').textContent = isStandard()
-          ? 'Shown to any cohort that has no songs of its own for this part.'
-          : songs.length ? '' : `This cohort has no songs of its own for this part, so it sees the standard songs (${standardCount}).`;
+        $('s-note').textContent = `Shown on part ${part().where}. ` + (isStandard()
+          ? 'These are seen by any cohort that has no songs of its own for this session.'
+          : songs.length ? '' : `This cohort has no songs of its own for this session, so it sees the standard songs (${standardCount}).`);
         $('s-list').innerHTML = songs.map((x, i) => `<li>
             <div class="song-admin-text"><a href="${esc(x.url)}" target="_blank" rel="noopener"><strong>${esc(x.title)}</strong></a>
               ${[x.translation && `(${esc(x.translation)})`, esc(x.language)].filter(Boolean).join(' · ')}
