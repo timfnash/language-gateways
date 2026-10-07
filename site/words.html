@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Words · Flourishing in Diversity</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/app.css">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <p class="kicker">Across the course</p>
+    <h1>Words</h1>
+    <p class="lead">Words we have looked at through more than one language, in the teaching and around the tables.
+      Open a word to see where each perspective came from, then open a perspective to see what that language shows us.</p>
+    <p class="meta" id="count"></p>
+    <div id="words"></div>
+  </main>
+
+  <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
+
+  <script type="module">
+    import { marked } from 'https://cdn.jsdelivr.net/npm/marked@18.0.14/+esm';
+    import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.4.16/+esm';
+    import { supabase, requireSignedIn, pageUrl } from './assets/app.js';
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    const markdown = md => DOMPurify.sanitize(marked.parse(md ?? ''));
+    const capitalise = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+    const { profile } = await requireSignedIn();
+    if (!profile || profile.status === 'pending') location.replace(pageUrl('home.html'));
+    else {
+      const { data, error } = await supabase.rpc('course_perspectives');
+      if (error) $('words').innerHTML = `<p class="message error">${esc(error.message)}</p>`;
+      else draw(data);
+    }
+
+    function draw(rows) {
+      // Group by word (ignoring case); only words seen through more than one perspective are listed.
+      const words = new Map();
+      for (const r of rows) {
+        const key = r.concept.trim().toLowerCase();
+        if (!words.has(key)) words.set(key, { concept: r.concept.trim(), items: [] });
+        words.get(key).items.push(r);
+      }
+      const shown = [...words.values()].filter(w => w.items.length > 1)
+        .sort((a, b) => a.concept.localeCompare(b.concept, 'en-GB', { sensitivity: 'base' }));
+      $('count').textContent = shown.length
+        ? `${shown.length} word${shown.length === 1 ? '' : 's'} seen through more than one language.` : '';
+
+      const source = r => r.cohort
+        ? `${esc(r.church_name)} · ${esc(r.cohort_name)}${r.mine ? ' (your cohort)' : ''}`
+        : 'From the teaching';
+      $('words').innerHTML = shown.length ? shown.map(w => `
+        <details class="card word">
+          <summary><strong>${esc(capitalise(w.concept))}</strong>
+            <span class="meta">${w.items.length} perspectives</span></summary>
+          <ul class="perspectives">${w.items.map(r => `<li><details>
+            <summary>${source(r)} <span class="meta">· Session ${r.session_number}: ${esc(r.segment_title)}</span></summary>
+            <div class="perspective">
+              <p class="item-meta"><span class="badge">${esc(r.language)}</span></p>
+              <p class="term">${esc(r.term)}${r.romanisation ? ` <span class="romanisation">${esc(r.romanisation)}</span>` : ''}</p>
+              ${r.insight ? `<div class="prose">${markdown(r.insight)}</div>` : ''}
+            </div>
+          </details></li>`).join('')}</ul>
+        </details>`).join('')
+        : '<p class="meta">No words have been looked at through more than one language yet.</p>';
+    }
+  </script>
+  <script type="module" src="assets/header.js"></script>
+</body>
+</html>

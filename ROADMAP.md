@@ -41,6 +41,13 @@ Decided with Tim (2 Oct 2026): no separate comments; notes themselves are shared
 - [ ] Swap in the polished standard video and its transcript when ready; a generic "Sing" slide
 - [x] Join links per cohort (churches needn't share members' details), with approval by admins or church admins;
       roles cycle none → church admin → admin
+- [x] Emails for join requests: "request received" (the confirmation email's wording) and "you're in" on approval
+      (Edge Function + Resend)
+- [x] Admins move people to another cohort or church (invitation, profile and notes move with them)
+- [x] Home page lists every session (only the current one open), with links to Songs and Words
+- [x] Songs page: every visible song from every session; filter by church, cohort, language; sort by session or English title
+- [x] Words page: words seen through more than one language, across sessions and cohorts (`perspectives.csv`)
+- [x] Table discussions and prayers organised by theme (each part's themes in `session.json`), not by table
 
 ## Phase 4: Welcome page and outreach
 - [ ] Welcome page with rotating approved quotes ("what people have said") and the key practical takeaways

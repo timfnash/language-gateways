@@ -13,6 +13,8 @@ header.innerHTML = `
       </button>
       <ul class="menu-list" id="site-menu" hidden>
         <li><a href="home.html" id="menu-home">Home</a></li>
+        <li data-signed-in hidden><a href="songs.html">Songs</a></li>
+        <li data-signed-in hidden><a href="words.html">Words</a></li>
         <li><a href="${FEEDBACK}">Feedback</a></li>
         <li data-signed-in hidden><a href="profile.html">Profile</a></li>
         <li data-admin hidden><a href="admin.html">Admin</a></li>

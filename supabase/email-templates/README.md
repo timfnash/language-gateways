@@ -11,6 +11,15 @@ Templates** (switch the editor to its HTML/source view if it has one), set the s
 
 The site doesn't use magic links, invite emails or reauthentication, so those templates can stay as they are.
 
+**Confirm signup doubles as the acknowledgement for requests to join.** The join page records whether the cohort
+needs approval (`needs_approval` in the user's metadata), and the template uses `{{ if .Data.needs_approval }}` to
+say "Request received … we’ll email you as soon as they have [approved it]" instead of the plain wording.
+Invited people, and joiners to cohorts that don't need approval, get the plain wording.
+
+The **approval** email ("You’re in") isn't a Supabase template: the `approve-join-request` Edge Function sends it
+through Resend when an admin approves a request. Its HTML is in `supabase/functions/approve-join-request/index.ts`
+(same design as these); see `supabase/functions/README.md` to deploy it.
+
 Copy one to the clipboard:
 
 ```bash
