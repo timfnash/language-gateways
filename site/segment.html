@@ -40,7 +40,7 @@
       <section class="other-tables" id="other-tables" hidden>
         <h2>From other groups</h2>
         <fieldset class="choices compact ui" id="read-scope">
-          <legend>Show songs and table discussions from</legend>
+          <legend>Show content from</legend>
           <label><input type="radio" name="read-scope" value="cohort"> My cohort</label>
           <label><input type="radio" name="read-scope" value="church"> My church</label>
           <label><input type="radio" name="read-scope" value="all"> All participants</label>
@@ -354,7 +354,7 @@
           }).join('');
         }
         $('other-material').innerHTML = readScope === 'cohort'
-          ? '<p class="meta">Choose <strong>My church</strong> or <strong>All participants</strong> to see other groups’ songs and table discussions.</p>'
+          ? '<p class="meta">Choose <strong>My church</strong> or <strong>All participants</strong> to see what other groups have shared.</p>'
           : html || `<p class="meta">No other groups ${readScope === 'church' ? 'in your church ' : ''}have shared anything for this part yet. Their songs, table discussions and prayers will appear here as more groups take the course.</p>`;
       }
 
