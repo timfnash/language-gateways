@@ -17,7 +17,7 @@
     <p class="kicker">Across the course</p>
     <h1>Words</h1>
     <p class="lead">Words we have looked at through more than one language, in the teaching and around the tables.
-      Open a word to see where each perspective came from, then open a perspective to see what that language shows us.</p>
+      Open a word to see what each language shows us.</p>
     <p class="meta" id="count"></p>
     <div id="words"></div>
   </main>
@@ -55,21 +55,20 @@
       $('count').textContent = shown.length
         ? `${shown.length} word${shown.length === 1 ? '' : 's'} seen through more than one language.` : '';
 
+      // Perspectives from the teaching need no label; those from a group's discussion say which group and session.
       const source = r => r.cohort
-        ? `${esc(r.church_name)} · ${esc(r.cohort_name)}${r.mine ? ' (your cohort)' : ''}`
-        : 'From the teaching';
+        ? `<p class="meta">${esc(r.church_name)} · ${esc(r.cohort_name)}${r.mine ? ' (your cohort)' : ''} · Session ${r.session_number}: ${esc(r.segment_title)}</p>`
+        : '';
       $('words').innerHTML = shown.length ? shown.map(w => `
         <details class="card word">
           <summary><strong>${esc(capitalise(w.concept))}</strong>
             <span class="meta">${w.items.length} perspectives</span></summary>
-          <ul class="perspectives">${w.items.map(r => `<li><details>
-            <summary>${source(r)} <span class="meta">· Session ${r.session_number}: ${esc(r.segment_title)}</span></summary>
-            <div class="perspective">
-              <p class="item-meta"><span class="badge">${esc(r.language)}</span></p>
-              <p class="term">${esc(r.term)}${r.romanisation ? ` <span class="romanisation">${esc(r.romanisation)}</span>` : ''}</p>
-              ${r.insight ? `<div class="prose">${markdown(r.insight)}</div>` : ''}
-            </div>
-          </details></li>`).join('')}</ul>
+          <ul class="perspectives">${w.items.map(r => `<li class="perspective">
+            <p class="item-meta"><span class="badge">${esc(r.language)}</span></p>
+            <p class="term">${esc(r.term)}${r.romanisation ? ` <span class="romanisation">${esc(r.romanisation)}</span>` : ''}</p>
+            ${r.insight ? `<div class="prose">${markdown(r.insight)}</div>` : ''}
+            ${source(r)}
+          </li>`).join('')}</ul>
         </details>`).join('')
         : '<p class="meta">No words have been looked at through more than one language yet.</p>';
     }
