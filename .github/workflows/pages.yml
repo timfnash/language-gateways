@@ -25,6 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
+      # Tag the shared CSS and JS with this commit, so browsers fetch fresh copies after each deploy
+      # instead of mixing a new page with a cached old stylesheet or script.
+      - name: Version asset links
+        run: |
+          v=${GITHUB_SHA::7}
+          sed -i -E "s#(assets/(app\.css|app\.js|header\.js))([\"'])#\1?v=$v\3#g" site/*.html
+          sed -i -E "s#'\./app\.js'#'./app.js?v=$v'#g" site/assets/*.js
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
