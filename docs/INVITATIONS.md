@@ -26,8 +26,13 @@ one stops working); untick **Needs approval** to let people from that link strai
 
 ## Requests to join
 
-**Requests to join** tab: **Approve** lets them in and adds them to the invitations list; **Decline**
-deletes the account they created. Church admins see only their own church's requests.
+**Requests to join** tab: **Approve** lets them in, adds them to the invitations list and emails them to say
+they're in (through the `approve-join-request` Edge Function: see `supabase/functions/README.md`); **Decline**
+deletes the account they created. Church admins see only their own church's requests. If someone used the wrong
+church's link, an admin can choose the right cohort on their request before approving it.
+
+People who ask to join get the "confirm your email" email straight away, worded as an acknowledgement that
+their request has been received (see `supabase/email-templates/README.md`).
 
 A request marked **Email not confirmed yet** is from someone who hasn't clicked the link in their
 confirmation email. They can't sign in until they do, even once approved; the sign-in page offers to
@@ -45,6 +50,13 @@ send the email again. If it stays unconfirmed, they may have mistyped their addr
 The list below shows everyone invited; a tick means they've joined, and an envelope means they've
 signed up but haven't confirmed their email address yet. Filter it by church, cohort,
 status (all invitees, joined, not yet joined), or a name or email.
+
+## Moving someone to another cohort or church
+
+Admins: choose the new cohort in the **Cohort** column of their row (cohorts are listed as *church · cohort*, so
+this also moves them to another church). Their invitation, profile and notes move with them, and they see the new
+cohort's material from then on; their progress is kept. Someone moved to another church loses any church admin
+role (give it again for the new church if needed).
 
 ## Removing someone
 

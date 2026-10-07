@@ -33,6 +33,7 @@ const JOIN_LINKS = '20261006';
 const CONFIRMATION = '20261007';
 const MATERIAL = '20261008';
 const NO_STANDARD = '20261009';
+const MOVE_SONGS_WORDS = '20261010';
 for (const file of migrations.filter(f => f < LATER)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
@@ -505,7 +506,7 @@ check('…not even by reading the table directly', !r.rows.some(x => x.kind === 
 r = await as(ids.bob, `select kind from public.session_material('fid-1-1', 'cohort')`);
 check('a cohort still sees its own talk', r.rows.some(x => x.kind === 'talk'));
 // Songs come from the loader, not from the Admin page
-for (const file of migrations.filter(f => f >= NO_STANDARD)) {
+for (const file of migrations.filter(f => f >= NO_STANDARD && f < MOVE_SONGS_WORDS)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
 r = await db.query(`select 1 from information_schema.columns where table_schema = 'public' and table_name = 'segments' and column_name = 'songs'`);
@@ -578,6 +579,58 @@ const bobNote = (await db.query(`select id from public.notes where user_id = $1 
 await asErr('…but not for other churches', ids.dave, `select public.set_note_approval('${bobNote}', true)`, 'Admins only');
 r = await as(ids.tim, `select author from public.admin_shared_notes() where author is not null`);
 check('admins still see writers', r.rows.length > 0);
+
+// ---------------------------------------------------------------------------
+// Songs page, Words page, moving people between cohorts
+// ---------------------------------------------------------------------------
+for (const file of migrations.filter(f => f >= MOVE_SONGS_WORDS)) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
+await db.exec(`insert into public.contributions (segment, cohort, kind, title, url, language) values
+  ('fid-1-1', 'other-2026', 'song', 'Other song', 'https://youtu.be/abcdefghijk', 'Shona'),
+  ('fid-2-1', 'freedom-church-jersey-2026-09', 'song', 'Draft song', 'https://youtu.be/abcdefghijk', 'Welsh')`);
+const songs = async who => (await as(ids[who], `select * from public.course_songs()`)).rows;
+r = await songs('jo');
+check('Songs page: my cohort\'s songs, with session and cohort', r.some(x => x.title === 'ការបង្កើតច្រៀង' && x.mine
+  && x.session_number === 1 && x.cohort_name === 'Autumn 2026' && x.church_name === 'Freedom Church Jersey'));
+check('…not songs from unpublished sessions', !r.some(x => x.title === 'Draft song'));
+check('…nor from cohorts limited to themselves', !r.some(x => x.title === 'Other song'));
+r = await songs('bob');
+check('…and other churches\' songs shared with everyone', r.some(x => x.title === 'ការបង្កើតច្រៀង' && !x.mine) && r.some(x => x.title === 'Other song' && x.mine));
+check('pending people see no songs', (await songs('quin')).length === 0);
+
+await db.exec(`insert into public.perspectives (segment, cohort, position, concept, language, term, romanisation, insight) values
+  ('fid-1-1', null, 1, 'sin', 'Japanese', '罪', 'tsumi', 'Uncleanness'),
+  ('fid-1-1', 'freedom-church-jersey-2026-09', 1, 'Sin', 'Chinese', '罪', 'zuì', 'Freedom insight'),
+  ('fid-1-1', 'other-2026', 1, 'sin', 'Dutch', 'zonde', null, 'Other insight'),
+  ('fid-2-1', null, 1, 'sin', 'Welsh', 'pechod', null, 'Draft insight')`);
+const words = async who => (await as(ids[who], `select * from public.course_perspectives()`)).rows.map(x => x.insight).sort().join('|');
+check('Words page: the teaching\'s and my cohort\'s perspectives', await words('jo') === 'Freedom insight|Uncleanness', await words('jo'));
+check('…plus other cohorts\' within their sharing limits', await words('bob') === 'Freedom insight|Other insight|Uncleanness', await words('bob'));
+check('pending people see no perspectives', await words('quin') === '');
+r = await as(ids.jo, `select insight from public.perspectives order by insight`);
+check('direct reads of perspectives follow the same rules', r.rows.map(x => x.insight).join('|') === 'Freedom insight|Uncleanness');
+r = await as(ids.jo, `select cohort_name, church_name from public.course_perspectives() where insight = 'Uncleanness'`);
+check('the teaching\'s perspectives come without a cohort', r.rows[0]?.cohort_name === null && r.rows[0]?.church_name === null);
+await asErr('members cannot add perspectives', ids.jo, `insert into public.perspectives (segment, concept, language, term) values ('fid-1-1', 'x', 'x', 'x')`, 'row-level security');
+
+await asErr('church admins cannot move people', ids.dave, `select public.admin_move_person('jo@example.com', 'freedom-church-jersey-2027-01')`, 'Admins only');
+await asErr('members cannot move people', ids.jo, `select public.admin_move_person('jo@example.com', 'other-2026')`, 'Admins only');
+r = await as(ids.tim, `select public.admin_move_person('JO@example.com', 'other-2026') as result`);
+const moved = (await db.query(`select p.church, p.cohort, i.cohort as invited, (select string_agg(distinct n.cohort, ',') from public.notes n where n.user_id = p.id) as notes
+  from public.profiles p join public.invitations i on i.email = p.email where p.id = $1`, [ids.jo])).rows[0];
+check('moving a person moves their profile, invitation and notes to the new church and cohort',
+  r.rows[0]?.result === 'moved' && moved.church === 'other-church' && moved.cohort === 'other-2026' && moved.invited === 'other-2026'
+  && moved.notes === 'other-2026', JSON.stringify(moved));
+check('…and they now see the new cohort\'s material as their own', (await songs('jo')).some(x => x.title === 'Other song' && x.mine));
+r = await as(ids.tim, `select public.admin_move_person('dave@example.com', 'other-2026') as result`);
+check('a church admin moved to another church loses the role', r.rows[0]?.result === 'moved, no longer church admin'
+  && (await db.query(`select 1 from public.church_admins where email = 'dave@example.com'`)).rows.length === 0);
+await as(ids.tim, `select public.admin_move_person('quin@example.com', 'other-2026')`);
+r = await as(ids.tim, `select church, cohort from public.admin_join_requests() where email = 'quin@example.com'`);
+check('a request to join can be moved before it is approved', r.rows[0]?.cohort === 'other-2026' && r.rows[0]?.church === 'other-church');
+await asErr('moving to an unknown cohort fails', ids.tim, `select public.admin_move_person('bob@example.com', 'nowhere')`, 'No such cohort');
+await asErr('moving an unknown person fails', ids.tim, `select public.admin_move_person('nobody@example.com', 'other-2026')`, 'No such person');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

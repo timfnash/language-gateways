@@ -197,7 +197,7 @@
           <li class="waiting">
             <p><strong>${esc([r.given_name, r.family_name].filter(Boolean).join(' ') || r.email)}</strong> &lt;${esc(r.email)}&gt;</p>
             ${r.email_confirmed ? '' : '<p class="badge-line"><span class="badge unconfirmed">Email not confirmed yet</span> They may have mistyped their address, or not opened the email yet.</p>'}
-            <p class="meta">${esc(cohortName(r.cohort))} · asked ${when(r.created_at)}${r.mother_tongue || r.other_languages
+            <p class="meta">${isAdmin ? cohortPicker(r.email, r.cohort) : esc(cohortName(r.cohort))} · asked ${when(r.created_at)}${r.mother_tongue || r.other_languages
               ? ` · ${esc([r.mother_tongue, r.other_languages].filter(Boolean).join('; '))}` : ''}</p>
             <button type="button" data-approve="${r.id}">Approve</button>
             <button type="button" class="secondary" data-decline="${r.id}" data-email="${esc(r.email)}">Decline</button>
@@ -209,13 +209,36 @@
         if (!ok && !no) return;
         if (no && !await ask(`Decline ${no.dataset.email}?\n\nThis deletes the account they created.`, { ok: 'Decline', danger: true })) return;
         (ok || no).disabled = true;
-        const { error } = ok
-          ? await supabase.rpc('approve_join_request', { p_user: ok.dataset.approve })
+        const { error, emailed, emailProblem } = ok
+          ? await approve(ok.dataset.approve)
           : await supabase.rpc('decline_join_request', { p_user: no.dataset.decline });
-        if (error) { (ok || no).disabled = false; return showMessage($('request-message'), error.message); }
-        showMessage($('request-message'), ok ? 'Approved. They can now see the course.' : 'Declined.', 'ok');
+        if (error) { (ok || no).disabled = false; return showMessage($('request-message'), error.message ?? error); }
+        showMessage($('request-message'), !ok ? 'Declined.' : emailed
+          ? 'Approved. They can now see the course, and we’ve emailed to tell them.'
+          : `Approved. They can now see the course, but the email to tell them wasn’t sent (${emailProblem}).`, 'ok');
         loadAll().then(loadRequests);
       });
+      $('requests').addEventListener('change', e => {
+        const pick = e.target.closest('select[data-move]');
+        if (pick) moveTo(pick, $('request-message')).then(moved => { if (moved) loadRequests(); });
+      });
+
+      // Approving goes through the approve-join-request Edge Function, which approves and then emails the person.
+      // If the function isn't deployed (or can't be reached), approve directly, without the email.
+      async function approve(id) {
+        const { data, error } = await supabase.functions.invoke('approve-join-request', { body: { user: id } });
+        if (!error) return { emailed: data?.emailed, emailProblem: data?.email_problem };
+        // 401 and 404 come from Supabase before the function runs (sign-in check, or no such function).
+        const status = error.context?.status;
+        if (error.name === 'FunctionsHttpError' && status !== 401 && status !== 404) {
+          const body = await error.context.json().catch(() => ({}));
+          return { error: body.error || error.message };
+        }
+        const { error: direct } = await supabase.rpc('approve_join_request', { p_user: id });
+        return direct ? { error: direct } : { emailed: false, emailProblem: status === 401
+          ? 'the email function didn’t accept your sign-in: see supabase/functions/README.md'
+          : 'the email function isn’t set up yet' };
+      }
 
       // ---- Shared notes --------------------------------------------------------
       const LABEL = { everyone: 'All participants', church: 'Their church', cohort: 'Their cohort' };
@@ -254,6 +277,25 @@
       const cohortLabel = c => `${churches.find(ch => ch.id === c.church)?.name ?? c.church} · ${c.name}`;
       const options = (items, label, all) => (all ? `<option value="">${all}</option>` : '') +
         items.map(i => `<option value="${esc(i.id)}">${esc(label(i))}</option>`).join('');
+
+      // Admins move someone to another cohort (and church) by choosing it in the list.
+      const cohortPicker = (email, current) => `<select class="move" data-move="${esc(email)}" data-current="${esc(current)}"
+        aria-label="Cohort for ${esc(email)}">${cohorts.map(c => `<option value="${esc(c.id)}"${c.id === current ? ' selected' : ''}>${esc(cohortLabel(c))}</option>`).join('')}</select>`;
+      async function moveTo(pick, message = $('remove-message')) {
+        const email = pick.dataset.move, to = cohorts.find(c => c.id === pick.value);
+        const from = cohorts.find(c => c.id === pick.dataset.current);
+        const otherChurch = from && from.church !== to.church;
+        const ok = await ask(`Move ${email} to ${cohortLabel(to)}?\n\nTheir notes move with them${otherChurch
+          ? `. They’ll see ${churches.find(c => c.id === to.church)?.name ?? 'the new church'}’s material instead of their old church’s, and lose any church admin role they had` : ''}.`, { ok: 'Move' });
+        if (!ok) { pick.value = pick.dataset.current; return false; }
+        pick.disabled = true;
+        const { data, error } = await supabase.rpc('admin_move_person', { p_email: email, p_cohort: to.id });
+        pick.disabled = false;
+        if (error) { pick.value = pick.dataset.current; tell(error.message); return false; }
+        showMessage(message, `Moved ${email} to ${cohortLabel(to)}${data === 'moved' ? '' : '. They are no longer a church admin'}.`, 'ok');
+        await loadAll();
+        return true;
+      }
 
       async function loadAll() {
         const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: roleList }, { data: unconf }] = await Promise.all([
@@ -326,7 +368,7 @@
               : `${ROLE[r]}. Click to change to: ${ROLE[NEXT[r]].toLowerCase()}.`;
             const removeTitle = r === 'admin' ? 'Remove their admin rights before removing this person.' : `Remove ${i.email}`;
             return `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
-              <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
+              <td>${cohortPicker(i.email, i.cohort)}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
               <td class="actions">${joinedIcon}<button type="button" class="icon-btn role-toggle" data-email="${esc(i.email)}" data-role="${r}"
                     aria-pressed="${r !== 'none'}" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}"${isMe ? ' disabled' : ''}>${ICON.shield}</button><button type="button" class="icon-btn danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email) || unconfirmed.has(i.email)}"
                     title="${esc(removeTitle)}" aria-label="${esc(removeTitle)}"${r === 'admin' ? ' disabled' : ''}>${ICON.trash}</button></td></tr>`;
@@ -337,6 +379,10 @@
       $('f-cohort').addEventListener('change', drawInvites);
       $('f-status').addEventListener('change', drawInvites);
       $('f-search').addEventListener('input', drawInvites);
+      $('invites').addEventListener('change', e => {
+        const pick = e.target.closest('select[data-move]');
+        if (pick) moveTo(pick);
+      });
 
       $('invites').addEventListener('click', async e => {
         const t = e.target.closest('button[data-role]');

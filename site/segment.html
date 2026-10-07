@@ -278,9 +278,14 @@
         $('watch-songs').innerHTML = html;
         embedVideos($('watch-songs'));
       }
+      // Table discussions and prayers are organised by theme (each item's title is its theme; it may have none).
+      const DISCUSSION = [['table', 'At the tables'], ['prayers', 'Prayers from the tables']];
+      const themed = items => items.map(t => `${t.title ? `<h3>${attr(t.title)}</h3>` : ''}${markdown(t.body)}`).join('');
       const discussionHtml = (tables, prayers) =>
-        (tables.length ? '<h2>At the tables</h2>' + tables.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '') +
-        (prayers.length ? '<h2>Prayers from the tables</h2>' + prayers.map(t => `<h3>${attr(t.title)}</h3>${markdown(t.body)}`).join('') : '');
+        (tables.length ? `<h2>${DISCUSSION[0][1]}</h2>` + themed(tables) : '') +
+        (prayers.length ? `<h2>${DISCUSSION[1][1]}</h2>` + themed(prayers) : '');
+      // [[key, [items…]], …] in order of first appearance.
+      const groupBy = (items, key) => [...items.reduce((m, i) => m.set(key(i), [...(m.get(key(i)) ?? []), i]), new Map())];
 
       async function loadMaterial() {
         $('material').innerHTML = '<p class="meta">Loading…</p>';
@@ -327,25 +332,29 @@
         }).observe($('read-end'));
       }
 
-      // Other groups' songs, table discussions and prayers, folded under each group's name.
+      // Other groups' songs (under each group's name), then their table discussions and prayers by theme: each
+      // theme folds open to show what every group said about it.
       function drawOthers() {
         const shown = readScope === 'all' ? others : readScope === 'church' ? others.filter(i => i.church_name === myChurchName) : [];
-        const groups = [];
-        for (const item of shown) {
-          const last = groups[groups.length - 1];
-          if (last?.cohort === item.cohort) last.items.push(item);
-          else groups.push({ cohort: item.cohort, label: `${item.church_name} · ${item.cohort_name}`, items: [item] });
+        const group = i => `${i.church_name} · ${i.cohort_name}`;
+        let html = '';
+        const songs = shown.filter(i => i.kind === 'song');
+        if (songs.length) html += '<h2>Songs</h2>' + groupBy(songs, group)
+          .map(([label, items]) => `<p class="from-group">${attr(label)}</p>${songListHtml(items)}`).join('');
+        for (const [kind, heading] of DISCUSSION) {
+          // Themes keep the part's order (their position); within a theme, groups keep theirs.
+          const items = shown.filter(i => i.kind === kind).sort((a, b) => a.item_position - b.item_position);
+          if (!items.length) continue;
+          html += `<h2>${heading}</h2>` + groupBy(items, i => i.title).map(([theme, its]) => {
+            const groups = new Set(its.map(group)).size;
+            return `<details class="cohort-material"><summary>${attr(theme || 'Other points')}
+              <span class="meta">${groups} group${groups === 1 ? '' : 's'}</span></summary><div class="prose">${
+              its.map(i => `<p class="from-group">${attr(group(i))}</p>${markdown(i.body)}`).join('')}</div></details>`;
+          }).join('');
         }
         $('other-material').innerHTML = readScope === 'cohort'
           ? '<p class="meta">Choose <strong>My church</strong> or <strong>All participants</strong> to see other groups’ songs and table discussions.</p>'
-          : groups.length
-            ? groups.map(g => {
-                const songs = g.items.filter(i => i.kind === 'song');
-                return `<details class="cohort-material"><summary>${attr(g.label)}</summary><div class="prose">${
-                  songs.length ? '<h2>Songs</h2>' + songListHtml(songs) : ''}${
-                  discussionHtml(g.items.filter(i => i.kind === 'table'), g.items.filter(i => i.kind === 'prayers'))}</div></details>`;
-              }).join('')
-            : `<p class="meta">No other groups ${readScope === 'church' ? 'in your church ' : ''}have shared anything for this part yet.</p>`;
+          : html || `<p class="meta">No other groups ${readScope === 'church' ? 'in your church ' : ''}have shared anything for this part yet.</p>`;
       }
 
       // Watch: the standard transcript, with slides, under the video.

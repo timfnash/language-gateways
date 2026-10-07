@@ -46,8 +46,13 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   be read across cohorts (My cohort default / My church / All participants). Songs come only from each cohort's write-up
   (`cohorts/<id>/songs.csv`, in the order sung, with Tim's YouTube links; there are no standard songs and no Admin
   editor). They show on the Watch tab (title, English title, language, video, below the intro video and transcript
-  button) and on the Read tab (bulleted list with what was said, no videos, also for other cohorts' songs). The loader
-  checks each YouTube link and prints its title so a wrong link is obvious.
+  button) and on the Read tab (bulleted list with what was said, no videos, also for other cohorts' songs), and on the
+  course-wide Songs page. The loader checks each YouTube link and prints its title so a wrong link is obvious.
+- **Themes, not tables:** table write-ups and prayers are organised by theme (summary points listed per part in
+  `session.json`), one file per part per cohort with `## <theme>` headings, so different cohorts' points line up.
+- **Words (perspectives):** words seen through different languages (concept, language, term, romanisation, insight)
+  from the teaching (`perspectives.csv`) and each cohort's discussions (`cohorts/<id>/perspectives.csv`), listed on
+  the Words page when a word has more than one perspective.
 - **Visibility:** notes are visible to everyone (default), my church, my cohort or only me, always without names.
   Each cohort has a sharing limit (everyone by default; admins or its church admins can narrow it to its church or
   cohort) that applies to its songs, table write-ups and prayers and caps its members' notes. Notes for everyone need approval
@@ -101,3 +106,5 @@ See `ROADMAP.md` for what to build and in what order, and `SESSION-CHECKLIST.md`
   from Tim). Copy it into the session's `slides/` as that part's slide. The songs part keeps "Songs" in its title.
 - Swahili song (Session One): the correct title is "Sifu Bwana Moyo Wangu" (confirmed by Tim).
 - Style: British English. Lightly tidy speech (remove ums, false starts and repetition) without changing meaning.
+- Sharing with the room: Tim's words are `**Tim:**`; contributions from the floor are italic blockquotes
+  (`> *…*`) with no "From Table n:" label (the italics and gold bar already mark them as from the floor).

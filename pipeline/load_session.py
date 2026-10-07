@@ -13,16 +13,18 @@ so you can see it's the right one.
 
 Folder layout (see docs/LOADING-SESSIONS.md):
 
-    session.json                 the session and its parts: titles, slides, video times, transcript files
+    session.json                 the session and its parts: titles, slides, video times, transcript files, themes
     slides/                      slide-01.jpg …
     transcripts/<part>.md        the standard transcript of each part (Watch tab)
+    perspectives.csv             words seen through other languages, from the teaching (Words page)
     cohorts/<cohort-id>/         one folder per cohort that has had this session (Read tab):
       talk/<part>.md             what was said with this cohort
       songs.csv                  segment,title,translation,language,url,story (in the order sung)
-      tables/<part>-<n>.md       table write-ups ("Table n")
-      prayers/<part>-<n>.md      prayers ("Table n")
+      tables/<part>.md           what the tables said, under "## <theme>" headings from the part's themes
+      prayers/<part>.md          the tables' prayers, the same way
+      perspectives.csv           segment,concept,language,term,romanisation,insight (Words page)
 
-Re-running is safe: parts are upserted, each loaded cohort's material for this session is replaced, and
+Re-running is safe: parts are upserted, each loaded cohort's material and words for this session are replaced, and
 slides are overwritten. People's progress and notes are kept.
 
 Needs SUPABASE_URL and SUPABASE_SECRET_KEY (Project Settings → API Keys → secret key) in the
@@ -137,6 +139,45 @@ def read_songs(path, parts, problems):
     return songs
 
 
+def read_sections(where, text, themes, problems):
+    """A table write-up or prayers file → [(theme or None, Markdown)], split at its "## " headings. Every heading
+    must be one of the part's "themes" in session.json, so each cohort's points line up under the same headings."""
+    sections, theme, lines = [], None, []
+
+    def flush():
+        body = '\n'.join(lines).strip()
+        if body:
+            sections.append((theme, body))
+    for line in text.splitlines():
+        m = re.match(r'##\s+(.+?)\s*$', line)
+        if m:
+            flush()
+            theme, lines = m.group(1), []
+            if theme not in themes:
+                problems.append(f"{where}: the heading {theme!r} isn't one of this part's \"themes\" in session.json")
+        else:
+            lines.append(line)
+    flush()
+    return sections
+
+
+def read_perspectives(path, parts, problems):
+    """perspectives.csv rows → [{segment, position, concept, language, term, romanisation, insight}, …]."""
+    rows = []
+    with open(path, newline='') as fh:
+        for n, row in enumerate(csv.DictReader(fh), 2):
+            row = {k: (v or '').strip() for k, v in row.items() if k}
+            if row.get('segment') not in parts:
+                problems.append(f"{path} row {n}: unknown part {row.get('segment')!r}"); continue
+            missing = [k for k in ('concept', 'language', 'term') if not row.get(k)]
+            if missing:
+                problems.append(f"{path} row {n}: needs {', '.join(missing)}"); continue
+            rows.append({'segment': row['segment'], 'position': n - 1, 'concept': row['concept'],
+                         'language': row['language'], 'term': row['term'],
+                         'romanisation': row.get('romanisation') or None, 'insight': row.get('insight', '')})
+    return rows
+
+
 def read_folder(folder):
     manifest = json.loads((folder / 'session.json').read_text())
     problems = []
@@ -152,6 +193,9 @@ def read_folder(folder):
         problems.append("songs.csv at the top of the session folder is no longer used (there are no standard songs): "
                         "put each cohort's songs in cohorts/<cohort-id>/songs.csv")
 
+    # Words seen through other languages: None holds the teaching's, then one list per cohort.
+    perspectives = {None: read_perspectives(folder / 'perspectives.csv', parts, problems)
+                    if (folder / 'perspectives.csv').exists() else []}
     cohorts = {}
     for cdir in sorted((folder / 'cohorts').glob('*/')) if (folder / 'cohorts').exists() else []:
         items = []
@@ -161,13 +205,18 @@ def read_folder(folder):
             text = f.read_text()
             check_markdown(str(f.relative_to(folder)), text, len(parts[f.stem]['slides']), problems)
             items.append({'segment': f.stem, 'kind': 'talk', 'position': 1, 'title': 'What was said', 'body': text})
+        # One file per part, organised by theme (not by table): each "## " section is stored with its theme as
+        # its title, and the theme's place in the part's list as its position.
         for kind, sub in (('table', 'tables'), ('prayers', 'prayers')):
             for f in sorted((cdir / sub).glob('*.md')) if (cdir / sub).exists() else []:
-                m = re.fullmatch(r'(.+)-(\d+)', f.stem)
-                if not m or m.group(1) not in parts:
-                    problems.append(f"{f}: name it <part>-<table number>.md, e.g. fid-1-3-1.md"); continue
-                items.append({'segment': m.group(1), 'kind': kind, 'position': int(m.group(2)),
-                              'title': f'Table {m.group(2)}', 'body': f.read_text()})
+                if f.stem not in parts:
+                    problems.append(f"{f}: name it after its part, e.g. {sub}/fid-1-3.md (one file per part, "
+                                    f"with \"## <theme>\" headings; files per table are no longer used)"); continue
+                themes = parts[f.stem].get('themes', [])
+                for theme, body in read_sections(str(f.relative_to(folder)), f.read_text(), themes, problems):
+                    items.append({'segment': f.stem, 'kind': kind,
+                                  'position': themes.index(theme) + 1 if theme in themes else 0,
+                                  'title': theme or '', 'body': body})
         if (cdir / 'songs.csv').exists():
             for part, songs in read_songs(cdir / 'songs.csv', parts, problems).items():
                 for n, song in enumerate(songs, 1):
@@ -175,7 +224,9 @@ def read_folder(folder):
                                   'body': song['story'], 'url': song['url'], 'language': song['language'],
                                   'translation': song['translation']})
         cohorts[cdir.name] = items
-    return manifest, cohorts, problems
+        if (cdir / 'perspectives.csv').exists():
+            perspectives[cdir.name] = read_perspectives(cdir / 'perspectives.csv', parts, problems)
+    return manifest, cohorts, perspectives, problems
 
 
 class Supabase:
@@ -213,7 +264,7 @@ def main():
     args = ap.parse_args()
 
     folder = args.folder.expanduser()
-    manifest, cohorts, problems = read_folder(folder)
+    manifest, cohorts, perspectives, problems = read_folder(folder)
     session = manifest['session']
     if args.cohort and args.cohort not in cohorts:
         problems.append(f"no folder cohorts/{args.cohort}")
@@ -222,8 +273,9 @@ def main():
               f"{len(seg['transcript_text'].split())}-word transcript")
     for cohort, items in cohorts.items():
         counts = {k: sum(1 for i in items if i['kind'] == k) for k in ('talk', 'song', 'table', 'prayers')}
-        print(f"cohort {cohort}: {counts['talk']} talks, {counts['song']} songs, {counts['table']} table write-ups, "
-              f"{counts['prayers']} prayers")
+        print(f"cohort {cohort}: {counts['talk']} talks, {counts['song']} songs, {counts['table']} table themes, "
+              f"{counts['prayers']} prayer themes, {len(perspectives.get(cohort, []))} words")
+    print(f"teaching: {len(perspectives[None])} words")
     if problems:
         sys.exit('Problems:\n  ' + '\n  '.join(problems))
     if not args.check or args.check_links:
@@ -243,6 +295,15 @@ def main():
     if not env.get('SUPABASE_URL') or not env.get('SUPABASE_SECRET_KEY'):
         sys.exit('Set SUPABASE_URL and SUPABASE_SECRET_KEY (in the environment or .env).')
     db = Supabase(env['SUPABASE_URL'], env['SUPABASE_SECRET_KEY'])
+    # Check the database is up to date before changing anything (the newest table the loader writes to).
+    try:
+        urllib.request.urlopen(urllib.request.Request(f"{db.url}/rest/v1/perspectives?select=id&limit=1",
+                                                      headers={'apikey': db.key}), context=SSL)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            sys.exit('The database has no perspectives table yet: run '
+                     'supabase/migrations/20261010000000_move_people_songs_and_words.sql in the Supabase SQL editor first.')
+        raise
 
     slides = sorted({name for seg in manifest['segments'] for name in seg['slides']})
     if not args.cohort:
@@ -269,6 +330,11 @@ def main():
 
     ids = ','.join(seg['id'] for seg in manifest['segments'])
     loaded = 0
+    if not args.cohort:
+        db.request('DELETE', f"/rest/v1/perspectives?cohort=is.null&segment=in.({ids})")
+        if perspectives[None]:
+            db.request('POST', '/rest/v1/perspectives', [{'cohort': None, **p} for p in perspectives[None]],
+                       {'Prefer': 'return=minimal'})
     for cohort, items in cohorts.items():
         if args.cohort and cohort != args.cohort:
             continue
@@ -277,6 +343,10 @@ def main():
         if rows:
             db.request('POST', '/rest/v1/contributions', rows, {'Prefer': 'return=minimal'})
         loaded += len(rows)
+        db.request('DELETE', f"/rest/v1/perspectives?cohort=eq.{cohort}&segment=in.({ids})")
+        if perspectives.get(cohort):
+            db.request('POST', '/rest/v1/perspectives', [{'cohort': cohort, **p} for p in perspectives[cohort]],
+                       {'Prefer': 'return=minimal'})
 
     if args.publish:
         state = 'published'

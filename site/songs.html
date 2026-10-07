@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Songs · Flourishing in Diversity</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/app.css">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main>
+    <p class="kicker">Across the course</p>
+    <h1>Songs</h1>
+    <p class="lead">Songs shared in every session, in the languages they were sung in, with the story behind each one.</p>
+
+    <div class="filters ui">
+      <label>Church <select id="f-church"></select></label>
+      <label>Cohort <select id="f-cohort"></select></label>
+      <label>Language <select id="f-language"></select></label>
+      <label>Sort by <select id="f-sort">
+        <option value="session">Session</option>
+        <option value="title">English title</option>
+      </select></label>
+    </div>
+    <p class="meta" id="count"></p>
+    <ul class="item-list" id="songs"></ul>
+  </main>
+
+  <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
+
+  <script type="module">
+    import { marked } from 'https://cdn.jsdelivr.net/npm/marked@18.0.14/+esm';
+    import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.4.16/+esm';
+    import { supabase, requireSignedIn, pageUrl } from './assets/app.js';
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    const markdown = md => DOMPurify.sanitize(marked.parse(md ?? ''));
+
+    const { profile } = await requireSignedIn();
+    if (!profile || profile.status === 'pending') location.replace(pageUrl('home.html'));
+    else {
+      const { data, error } = await supabase.rpc('course_songs');
+      if (error) $('songs').innerHTML = `<li class="message error">${esc(error.message)}</li>`;
+      else start(data);
+    }
+
+    function start(songs) {
+      const unique = (items, key, label) => [...new Map(items.map(i => [i[key], label(i)])).entries()]
+        .sort((a, b) => a[1].localeCompare(b[1], 'en-GB'));
+      const options = (pairs, all) => `<option value="">${all}</option>` +
+        pairs.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
+      const keep = (el, html) => { const v = el.value; el.innerHTML = html; if ([...el.options].some(o => o.value === v)) el.value = v; };
+
+      $('f-church').innerHTML = options(unique(songs, 'church', s => s.church_name), 'All churches');
+      $('f-language').innerHTML = options(unique(songs.filter(s => s.language), 'language', s => s.language), 'All languages');
+      const fillCohorts = () => keep($('f-cohort'), options(unique(songs.filter(s => !$('f-church').value || s.church === $('f-church').value),
+        'cohort', s => `${s.church_name} · ${s.cohort_name}`), 'All cohorts'));
+      fillCohorts();
+
+      const englishTitle = s => s.translation || s.title;
+      function draw() {
+        const church = $('f-church').value, cohort = $('f-cohort').value, language = $('f-language').value;
+        const shown = songs.filter(s => (!church || s.church === church) && (!cohort || s.cohort === cohort)
+          && (!language || s.language === language));
+        // Songs arrive in session order; sorting by title keeps that order for songs with the same title.
+        if ($('f-sort').value === 'title') shown.sort((a, b) => englishTitle(a).localeCompare(englishTitle(b), 'en-GB'));
+        $('count').textContent = `${shown.length} song${shown.length === 1 ? '' : 's'}`
+          + (shown.length !== songs.length ? ` (of ${songs.length})` : '') + '.';
+        $('songs').innerHTML = shown.length ? shown.map(s => `<li class="card">
+            <h2><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></h2>
+            <p class="item-meta">${[s.translation && `<span>${esc(s.translation)}</span>`, s.language && `<span class="badge">${esc(s.language)}</span>`]
+              .filter(Boolean).join(' ')}</p>
+            ${s.story ? `<div class="prose">${markdown(s.story)}</div>` : ''}
+            <p class="meta">Session ${s.session_number}: ${esc(s.session_title)} · ${esc(s.church_name)} · ${esc(s.cohort_name)}${s.mine ? ' (your cohort)' : ''}</p>
+          </li>`).join('')
+          : `<li class="meta">${songs.length ? 'No songs match.' : 'No songs have been shared yet.'}</li>`;
+      }
+      $('f-church').addEventListener('change', () => { fillCohorts(); draw(); });
+      ['f-cohort', 'f-language', 'f-sort'].forEach(id => $(id).addEventListener('change', draw));
+      draw();
+    }
+  </script>
+  <script type="module" src="assets/header.js"></script>
+</body>
+</html>

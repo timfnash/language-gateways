@@ -27,11 +27,25 @@
     <div class="card pending" id="pending" hidden>
       <h2>Waiting for approval</h2>
       <p id="pending-text">Thanks for joining. Your request is waiting for approval by your church or the course team.</p>
-      <p class="meta">Once it’s approved, the course will appear here. Questions? Email
+      <p class="meta">We’ll email you when it’s approved, and the course will appear here. Questions? Email
         <a href="mailto:courses@languagegateways.com">courses@languagegateways.com</a>.</p>
     </div>
 
     <div id="sessions"></div>
+
+    <section class="explore" id="explore" hidden>
+      <h2>Across the course</h2>
+      <div class="explore-grid">
+        <a class="card explore-card" href="songs.html">
+          <strong>Songs</strong>
+          <span class="meta">Every song shared so far, in every language, with the story behind it.</span>
+        </a>
+        <a class="card explore-card" href="words.html">
+          <strong>Words</strong>
+          <span class="meta">Words seen through more than one language: what each language shows us.</span>
+        </a>
+      </div>
+    </section>
 
     <div class="card" id="empty" hidden>
       <h2 style="margin-top:0">Session One: coming soon</h2>
@@ -74,6 +88,7 @@
         adminNote.hidden = false;
       }
       document.getElementById('empty').hidden = sessions.some(s => s.published_at);
+      document.getElementById('explore').hidden = !sessions.some(s => s.published_at);
 
       // Continue where you left off: the most recently opened segment, or the next unfinished one if that's done.
       const latest = Object.entries(progress)
@@ -97,6 +112,9 @@
         c.hidden = false;
       }
 
+      // Every session is listed; only the one you're working on (where "continue" points, or else the first
+      // published one) shows its parts, so the page stays short as sessions are added.
+      const current = target?.session.id ?? sessions.find(s => s.published_at)?.id;
       document.getElementById('sessions').innerHTML = sessions.map(session => {
         const done = session.segments.filter(s => isComplete(progress[s.id])).length;
         return `<section class="card session">
@@ -105,7 +123,9 @@
           ${session.summary ? `<p>${esc(session.summary)}</p>` : ''}
           <p class="meta">${done} of ${session.segments.length} parts done</p>
           </div>
-          <ol class="segments ui">${session.segments.map(seg => {
+          <details class="parts ui"${session.id === current ? ' open' : ''}>
+          <summary>${session.segments.length} part${session.segments.length === 1 ? '' : 's'}</summary>
+          <ol class="segments">${session.segments.map(seg => {
             const modes = progress[seg.id] ?? {};
             const complete = isComplete(modes);
             const finished = Object.keys(modes).filter(m => modes[m].completed_at).map(m => MODES[m]);
@@ -116,6 +136,7 @@
               ${finished.length ? `<span class="meta">${finished.join(' · ')}</span>` : ''}
             </li>`;
           }).join('')}</ol>
+          </details>
         </section>`;
       }).join('');
     }
