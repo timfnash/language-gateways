@@ -122,12 +122,20 @@ def check_markdown(where, text, slides, problems):
             problems.append(f"{where}: more than one {marker} marker")
 
 
+def check_quotes(path, n, row, problems):
+    """A quote inside a quoted CSV field is written "" (not \\"); a backslash means it was escaped the wrong way."""
+    for k, v in row.items():
+        if '\\' in (v or ''):
+            problems.append(f"{path} row {n}: {k} has a backslash; write a quote inside a quoted field as \"\" (two quotes)")
+
+
 def read_songs(path, parts, problems):
     """songs.csv rows → {part id: [{title, translation, language, url, story}, …]}."""
     songs = {}
     with open(path, newline='') as fh:
         for n, row in enumerate(csv.DictReader(fh), 2):
             row = {k: (v or '').strip() for k, v in row.items() if k}
+            check_quotes(path, n, row, problems)
             if row.get('segment') not in parts:
                 problems.append(f"{path} row {n}: unknown part {row.get('segment')!r}"); continue
             if not YOUTUBE.search(row.get('url', '')):
@@ -167,6 +175,7 @@ def read_perspectives(path, parts, problems):
     with open(path, newline='') as fh:
         for n, row in enumerate(csv.DictReader(fh), 2):
             row = {k: (v or '').strip() for k, v in row.items() if k}
+            check_quotes(path, n, row, problems)
             if row.get('segment') not in parts:
                 problems.append(f"{path} row {n}: unknown part {row.get('segment')!r}"); continue
             missing = [k for k in ('concept', 'language', 'term') if not row.get(k)]
