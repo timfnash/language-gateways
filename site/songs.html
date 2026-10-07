@@ -74,7 +74,8 @@
           + (shown.length !== songs.length ? ` (of ${songs.length})` : '') + '.';
         $('songs').innerHTML = shown.length ? shown.map(s => `<li class="card">
             <h2><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></h2>
-            <p class="item-meta">${[s.translation && `<span>${esc(s.translation)}</span>`, s.language && `<span class="badge">${esc(s.language)}</span>`]
+            <p class="item-meta">${[s.translation && `<span>${esc(s.translation)}</span>`, s.language && `<button type="button" class="badge badge-filter" data-language="${esc(s.language)}"
+                title="Show only songs in ${esc(s.language)}">${esc(s.language)}</button>`]
               .filter(Boolean).join(' ')}</p>
             ${s.story ? `<div class="prose">${markdown(s.story)}</div>` : ''}
             <p class="meta">Session ${s.session_number}: ${esc(s.session_title)} · ${esc(s.church_name)} · ${esc(s.cohort_name)}${s.mine ? ' (your cohort)' : ''}</p>
@@ -83,6 +84,14 @@
       }
       $('f-church').addEventListener('change', () => { fillCohorts(); draw(); });
       ['f-cohort', 'f-language', 'f-sort'].forEach(id => $(id).addEventListener('change', draw));
+      // Clicking a song's language shows only songs in that language (click again to show all).
+      $('songs').addEventListener('click', e => {
+        const b = e.target.closest('button[data-language]');
+        if (!b) return;
+        $('f-language').value = $('f-language').value === b.dataset.language ? '' : b.dataset.language;
+        draw();
+        $('f-language').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
       draw();
     }
   </script>
