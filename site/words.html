@@ -60,7 +60,7 @@
         ? `<p class="meta">${esc(r.church_name)} · ${esc(r.cohort_name)}${r.mine ? ' (your cohort)' : ''} · Session ${r.session_number}: ${esc(r.segment_title)}</p>`
         : '';
       $('words').innerHTML = shown.length ? shown.map(w => `
-        <details class="card word">
+        <details class="card word" name="word">
           <summary><strong>${esc(capitalise(w.concept))}</strong>
             <span class="meta">${w.items.length} perspectives</span></summary>
           <ul class="perspectives">${w.items.map(r => `<li class="perspective">
@@ -71,6 +71,11 @@
           </li>`).join('')}</ul>
         </details>`).join('')
         : '<p class="meta">No words have been looked at through more than one language yet.</p>';
+      // One word open at a time (name="word" does this in newer browsers; this covers the rest).
+      $('words').addEventListener('toggle', e => {
+        if (!e.target.open) return;
+        for (const d of $('words').querySelectorAll('details.word[open]')) if (d !== e.target) d.open = false;
+      }, true);
     }
   </script>
   <script type="module" src="assets/header.js"></script>
