@@ -62,8 +62,9 @@ so if that one works, only the function itself is needed:
 
 **Unsubscribing.** Every email it sends ends with an unsubscribe link (and carries a List-Unsubscribe header, so
 mail programs can show their own Unsubscribe button). The link holds the person's random unsubscribe code from the
-`email_preferences` table, never their address, and opens `unsubscribe.html`, where one click unsubscribes them
-without signing in. People can also turn these emails off or on in their Profile. The function skips anyone who has
+`email_preferences` table, never their address, and opens `unsubscribe.html`, which shows where they stand: one
+click unsubscribes them, or resubscribes them if they already have, without signing in. So the link in any old email
+works both ways, even for people who never created an account. People can also turn these emails off or on in their Profile. The function skips anyone who has
 unsubscribed and reports how many. This needs migration `20261011000000_email_unsubscribe.sql`; until it has been
 run, emails go out without the link.
 

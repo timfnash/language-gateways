@@ -35,6 +35,7 @@ const MATERIAL = '20261008';
 const NO_STANDARD = '20261009';
 const MOVE_SONGS_WORDS = '20261010';
 const UNSUBSCRIBE = '20261011';
+const UNSUBSCRIBE_STATUS = '20261012';
 for (const file of migrations.filter(f => f < LATER)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
@@ -636,7 +637,7 @@ await asErr('moving an unknown person fails', ids.tim, `select public.admin_move
 // ---------------------------------------------------------------------------
 // Unsubscribing from admin emails
 // ---------------------------------------------------------------------------
-for (const file of migrations.filter(f => f >= UNSUBSCRIBE)) {
+for (const file of migrations.filter(f => f >= UNSUBSCRIBE && f < UNSUBSCRIBE_STATUS)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
 r = await db.query(`select (select count(*) from public.invitations)::int i, (select count(*) from public.email_preferences)::int p`);
@@ -672,6 +673,22 @@ r = await db.query(`select email from public.email_preferences where unsubscribe
 check('…and opt out there, changing only their own', r.rows.map(x => x.email).join() === 'jo@example.com');
 await as(ids.tim, `select public.admin_remove_person('newer@example.com')`);
 check('removing an invitation removes its code', (await db.query(`select 1 from public.email_preferences where email = 'newer@example.com'`)).rows.length === 0);
+
+// The unsubscribe page shows where someone stands
+for (const file of migrations.filter(f => f >= UNSUBSCRIBE_STATUS)) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
+const joCode = (await db.query(`select unsubscribe_code from public.email_preferences where email = 'jo@example.com'`)).rows[0].unsubscribe_code;
+await db.exec(`set role anon`);
+const status = async code => (await db.query(`select public.unsubscribe_status('${code}') s`)).rows[0].s;
+const jo1 = await status(joCode), bob1 = await status(bobCode), none = await status('00000000-0000-0000-0000-000000000000');
+await db.query(`select public.set_unsubscribed('${joCode}', false)`);
+const jo2 = await status(joCode);
+await db.exec(`reset role`);
+check('the page can tell an unsubscribed person (signed out)', jo1 === true);
+check('…a subscribed one', bob1 === false);
+check('…and an unknown code', none === null);
+check('…and resubscribing from the link works', jo2 === false);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

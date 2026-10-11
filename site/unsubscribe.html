@@ -28,11 +28,12 @@
       </div>
       <div id="done" hidden>
         <p>You’re unsubscribed. The course team won’t send you any more emails like this.</p>
-        <p class="meta">Changed your mind? You can also do this later on your Profile page.</p>
-        <button type="button" class="secondary wide" id="resubscribe">Keep getting course emails</button>
+        <p class="meta">Changed your mind? Resubscribe here, at any time, with the link in any of our emails.</p>
+        <button type="button" class="secondary wide" id="resubscribe">Resubscribe to course emails</button>
       </div>
       <div id="back" hidden>
-        <p>You’ll keep getting emails from the course team.</p>
+        <p>You’re subscribed: you’ll get emails from the course team.</p>
+        <p class="meta">You can unsubscribe at any time with the link in any of our emails, or on your Profile page.</p>
       </div>
       <p class="small"><a href="index.html">Go to the course</a></p>
     </div>
@@ -43,7 +44,8 @@
   <script type="module">
     import { supabase, configured, showMessage, notConfiguredBanner } from './assets/app.js';
 
-    // The link carries the person's random unsubscribe code (not their address). Nothing changes until they click,
+    // The link carries the person's random unsubscribe code (not their address). Opening it only shows where they
+    // stand (subscribed: offer Unsubscribe; unsubscribed: offer Resubscribe). Nothing changes until they click,
     // so mail scanners that open links don't unsubscribe anyone.
     const $ = id => document.getElementById(id);
     const code = new URLSearchParams(location.search).get('c')?.trim();
@@ -52,7 +54,13 @@
 
     if (!configured) notConfiguredBanner();
     else if (!valid) showMessage($('message'), 'This unsubscribe link isn’t complete. Please use the link from the email, or contact courses@languagegateways.com.');
-    else show('ask');
+    else {
+      const { data: isUnsubscribed, error } = await supabase.rpc('unsubscribe_status', { p_code: code });
+      if (error) showMessage($('message'), 'Something went wrong. Please try again, or email courses@languagegateways.com.');
+      else if (isUnsubscribed === null) showMessage($('message'), 'This unsubscribe link isn’t valid any more. Please email courses@languagegateways.com and we’ll take you off the list.');
+      else if (isUnsubscribed) { $('heading').textContent = 'Unsubscribed'; show('done'); }
+      else show('ask');
+    }
 
     async function set(unsubscribe, button) {
       button.disabled = true;
