@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unsubscribe · Flourishing in Diversity</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="assets/app.css">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+</head>
+<body>
+  <header id="site-header"></header>
+
+  <main class="split">
+    <div class="intro">
+    <p class="kicker">Emails</p>
+    <h1 id="heading">Unsubscribe</h1>
+    </div>
+
+    <div class="card ui">
+      <p id="message" class="message" hidden></p>
+      <div id="ask" hidden>
+        <p>Stop getting emails from the <em>Flourishing in Diversity</em> course team, such as news and messages to your group?</p>
+        <p class="meta">You’ll still get emails about your account, such as confirming your email address or resetting your password.</p>
+        <button type="button" class="wide" id="unsubscribe">Unsubscribe</button>
+      </div>
+      <div id="done" hidden>
+        <p>You’re unsubscribed. The course team won’t send you any more emails like this.</p>
+        <p class="meta">Changed your mind? You can also do this later on your Profile page.</p>
+        <button type="button" class="secondary wide" id="resubscribe">Keep getting course emails</button>
+      </div>
+      <div id="back" hidden>
+        <p>You’ll keep getting emails from the course team.</p>
+      </div>
+      <p class="small"><a href="index.html">Go to the course</a></p>
+    </div>
+  </main>
+
+  <footer><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · © Zipf (Jersey) Ltd</footer>
+
+  <script type="module">
+    import { supabase, configured, showMessage, notConfiguredBanner } from './assets/app.js';
+
+    // The link carries the person's random unsubscribe code (not their address). Nothing changes until they click,
+    // so mail scanners that open links don't unsubscribe anyone.
+    const $ = id => document.getElementById(id);
+    const code = new URLSearchParams(location.search).get('c')?.trim();
+    const valid = /^[0-9a-f-]{36}$/i.test(code ?? '');
+    const show = which => ['ask', 'done', 'back'].forEach(id => { $(id).hidden = id !== which; });
+
+    if (!configured) notConfiguredBanner();
+    else if (!valid) showMessage($('message'), 'This unsubscribe link isn’t complete. Please use the link from the email, or contact courses@languagegateways.com.');
+    else show('ask');
+
+    async function set(unsubscribe, button) {
+      button.disabled = true;
+      const { data, error } = await supabase.rpc('set_unsubscribed', { p_code: code, p_unsubscribe: unsubscribe });
+      button.disabled = false;
+      if (error || !data) return showMessage($('message'), error
+        ? 'Something went wrong. Please try again, or email courses@languagegateways.com.'
+        : 'This unsubscribe link isn’t valid any more. Please email courses@languagegateways.com and we’ll take you off the list.');
+      showMessage($('message'), '');
+      $('heading').textContent = unsubscribe ? 'Unsubscribed' : 'Subscribed';
+      show(unsubscribe ? 'done' : 'back');
+    }
+    $('unsubscribe').addEventListener('click', e => set(true, e.currentTarget));
+    $('resubscribe').addEventListener('click', e => set(false, e.currentTarget));
+  </script>
+  <script type="module" src="assets/header.js"></script>
+</body>
+</html>

@@ -45,6 +45,8 @@ Decided with Tim (2 Oct 2026): no separate comments; notes themselves are shared
       (Edge Function + Resend)
 - [x] Admins move people to another cohort or church (invitation, profile and notes move with them)
 - [x] Admins email selected people (or a whole cohort) from the invitations list (`send-email` Edge Function + Resend)
+- [x] Unsubscribe link in every admin email (one click, no sign-in), opt in/out on the Profile page; crossed-out
+      envelope on the Admin page; unsubscribed people are skipped
 - [x] Home page lists every session (only the current one open), with links to Songs and Words
 - [x] Songs page: every visible song from every session; filter by church, cohort, language; sort by session or English title
 - [x] Words page: words seen through more than one language, across sessions and cohorts (`perspectives.csv`)

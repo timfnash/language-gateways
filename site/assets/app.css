@@ -345,6 +345,7 @@ button.icon-btn.danger:disabled { color: var(--muted); opacity: .45; }
 .badge.unconfirmed { background: var(--error-bg); color: var(--error-text); }
 .badge-line { font-size: .85rem; color: var(--muted); }
 .icon.unconfirmed { color: var(--muted); }
+.icon.unsubscribed { color: var(--error-text); }
 .join-link { white-space: nowrap; }
 select.share-limit { width: auto; padding: 6px 10px; font-size: .85rem; }
 .join-link button.link { font-size: .85rem; }
