@@ -41,6 +41,12 @@
       <input id="email" readonly>
 
       <button type="submit" id="save">Save</button>
+
+      <div id="email-pref" hidden>
+        <label class="consent"><input type="checkbox" id="course-emails"> Send me emails from the course team (news and
+          messages to my group). Emails about your account always come.</label>
+        <p class="message" id="pref-message" hidden></p>
+      </div>
     </form>
   </main>
 
@@ -49,6 +55,7 @@
   <script type="module">
     import { supabase, requireSignedIn, showMessage, friendlyError, pageUrl } from './assets/app.js';
 
+    const $ = id => document.getElementById(id);
     const fields = ['given_name', 'family_name', 'mother_tongue', 'other_languages'];
     const form = document.getElementById('form');
     const message = document.getElementById('message');
@@ -72,6 +79,18 @@
       document.getElementById('membership').textContent =
         `${church?.name ?? profile.church} · ${cohort?.name ?? profile.cohort}`;
       form.hidden = false;
+
+      // Emails from the course team (the Admin page's "Email selected"): saved as soon as it's ticked or unticked.
+      const { data: unsubscribed, error: prefError } = await supabase.rpc('my_unsubscribed');
+      if (!prefError && unsubscribed !== null) {
+        $('course-emails').checked = !unsubscribed;
+        $('email-pref').hidden = false;
+        $('course-emails').addEventListener('change', async e => {
+          const { error } = await supabase.rpc('set_my_unsubscribed', { p_unsubscribe: !e.target.checked });
+          if (error) { e.target.checked = !e.target.checked; return showMessage($('pref-message'), error.message); }
+          showMessage($('pref-message'), e.target.checked ? 'You’ll get emails from the course team.' : 'You won’t get emails from the course team.', 'ok');
+        });
+      }
 
       form.addEventListener('submit', async e => {
         e.preventDefault();

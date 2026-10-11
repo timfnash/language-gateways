@@ -34,6 +34,7 @@ const CONFIRMATION = '20261007';
 const MATERIAL = '20261008';
 const NO_STANDARD = '20261009';
 const MOVE_SONGS_WORDS = '20261010';
+const UNSUBSCRIBE = '20261011';
 for (const file of migrations.filter(f => f < LATER)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
@@ -583,7 +584,7 @@ check('admins still see writers', r.rows.length > 0);
 // ---------------------------------------------------------------------------
 // Songs page, Words page, moving people between cohorts
 // ---------------------------------------------------------------------------
-for (const file of migrations.filter(f => f >= MOVE_SONGS_WORDS)) {
+for (const file of migrations.filter(f => f >= MOVE_SONGS_WORDS && f < UNSUBSCRIBE)) {
   await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
 }
 await db.exec(`insert into public.contributions (segment, cohort, kind, title, url, language) values
@@ -631,6 +632,46 @@ r = await as(ids.tim, `select church, cohort from public.admin_join_requests() w
 check('a request to join can be moved before it is approved', r.rows[0]?.cohort === 'other-2026' && r.rows[0]?.church === 'other-church');
 await asErr('moving to an unknown cohort fails', ids.tim, `select public.admin_move_person('bob@example.com', 'nowhere')`, 'No such cohort');
 await asErr('moving an unknown person fails', ids.tim, `select public.admin_move_person('nobody@example.com', 'other-2026')`, 'No such person');
+
+// ---------------------------------------------------------------------------
+// Unsubscribing from admin emails
+// ---------------------------------------------------------------------------
+for (const file of migrations.filter(f => f >= UNSUBSCRIBE)) {
+  await db.exec(readFileSync(`${repo}/migrations/${file}`, 'utf8'));
+}
+r = await db.query(`select (select count(*) from public.invitations)::int i, (select count(*) from public.email_preferences)::int p`);
+check('everyone already invited gets an unsubscribe code', r.rows[0].i > 0 && r.rows[0].i === r.rows[0].p, JSON.stringify(r.rows[0]));
+await as(ids.tim, `insert into public.invitations (email, church, cohort) values ('Newer@Example.com', 'other-church', 'other-2026')`);
+r = await db.query(`select unsubscribe_code from public.email_preferences where email = 'newer@example.com'`);
+check('new invitations get one too', r.rows.length === 1);
+r = await as(ids.jo, `select * from public.email_preferences`);
+check('members cannot read unsubscribe codes', r.rows.length === 0);
+r = await as(ids.tim, `select * from public.email_preferences`);
+check('…nor can admins (only the service role and the functions)', r.rows.length === 0);
+const bobCode = (await db.query(`select unsubscribe_code from public.email_preferences where email = 'bob@example.com'`)).rows[0].unsubscribe_code;
+await db.exec(`set role anon`);
+const unsub = (await db.query(`select public.set_unsubscribed('${bobCode}', true) ok`)).rows[0].ok;
+const wrong = (await db.query(`select public.set_unsubscribed(gen_random_uuid(), true) ok`)).rows[0].ok;
+await db.exec(`reset role`);
+check('the unsubscribe link works without signing in', unsub === true);
+check('…and a wrong code changes nothing', wrong === false);
+r = await as(ids.bob, `select public.my_unsubscribed() u`);
+check('the person sees they are unsubscribed', r.rows[0].u === true);
+r = await as(ids.tim, `select * from public.admin_unsubscribed_emails() as email`);
+check('admins see who has unsubscribed', r.rows.map(x => x.email).join() === 'bob@example.com');
+await as(ids.tim, `select public.admin_set_role('lee@example.com', 'church')`);
+r = await as(ids.lee, `select * from public.admin_unsubscribed_emails() as email`);
+check('church admins see their own church\'s', r.rows.map(x => x.email).join() === 'bob@example.com');
+await as(ids.tim, `select public.admin_set_role('lee@example.com', 'none')`);
+await asErr('members cannot list who has unsubscribed', ids.jo, `select * from public.admin_unsubscribed_emails()`, 'Admins only');
+await as(ids.bob, `select public.set_my_unsubscribed(false)`);
+r = await as(ids.bob, `select public.my_unsubscribed() u`);
+check('people can opt back in from their profile', r.rows[0].u === false);
+await as(ids.jo, `select public.set_my_unsubscribed(true)`);
+r = await db.query(`select email from public.email_preferences where unsubscribed_at is not null`);
+check('…and opt out there, changing only their own', r.rows.map(x => x.email).join() === 'jo@example.com');
+await as(ids.tim, `select public.admin_remove_person('newer@example.com')`);
+check('removing an invitation removes its code', (await db.query(`select 1 from public.email_preferences where email = 'newer@example.com'`)).rows.length === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

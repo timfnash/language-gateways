@@ -294,7 +294,7 @@
       loadNotes();
 
       // ---- Invitations, churches and cohorts -----------------------------------
-      let churches = [], cohorts = [], invites = [], joined = new Set(), unconfirmed = new Set(), roles = new Map();
+      let churches = [], cohorts = [], invites = [], joined = new Set(), unconfirmed = new Set(), unsubscribed = new Set(), roles = new Map();
       const cohortName = id => { const c = cohorts.find(c => c.id === id); return c ? cohortLabel(c) : id; };
       const cohortLabel = c => `${churches.find(ch => ch.id === c.church)?.name ?? c.church} · ${c.name}`;
       const options = (items, label, all) => (all ? `<option value="">${all}</option>` : '') +
@@ -320,16 +320,18 @@
       }
 
       async function loadAll() {
-        const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: roleList }, { data: unconf }] = await Promise.all([
+        const [{ data: ch }, { data: cs }, { data: inv }, { data: profiles }, { data: roleList }, { data: unconf }, { data: unsub }] = await Promise.all([
           supabase.from('churches').select('id, name').order('name'),
           supabase.from('cohorts').select('id, church, name, join_code, join_requires_approval, share_limit').order('created_at', { ascending: false }),
           supabase.from('invitations').select('*').order('created_at', { ascending: false }),
           supabase.from('profiles').select('email, given_name, family_name, mother_tongue, other_languages').eq('status', 'active'),
           isAdmin ? supabase.rpc('admin_list_roles') : Promise.resolve({ data: [] }),
           supabase.rpc('admin_unconfirmed_emails'),
+          supabase.rpc('admin_unsubscribed_emails'),
         ]);
         // "Joined" means an active account with a confirmed email address.
         unconfirmed = new Set((unconf ?? []).map(u => typeof u === 'string' ? u : u.admin_unconfirmed_emails ?? u.email));
+        unsubscribed = new Set((unsub ?? []).map(u => typeof u === 'string' ? u : u.admin_unsubscribed_emails ?? u.email));
         roles = new Map((roleList ?? []).map(r => [r.email, r.role]));
         churches = ch ?? []; cohorts = cs ?? [];
         // For people who have joined, show what's on their profile (the invitation only has what was known when
@@ -373,7 +375,12 @@
           check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
           mail: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>',
           shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
+          noMail: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6M3 3l18 18"/></svg>',
         };
+        // Unsubscribed from admin emails: shown beside the joined / not-confirmed icon.
+        const unsubIcon = i => unsubscribed.has(i.email)
+          ? `<span class="icon unsubscribed" title="Unsubscribed from course team emails (Email selected skips them)" aria-label="Unsubscribed from course team emails" role="img">${ICON.noMail}</span>`
+          : unsubscribed.size ? '<span class="icon" aria-hidden="true"></span>' : '';  // keeps the icons lined up
         const me = profile.email;
         const ROLE = { none: 'No admin rights', church: 'Church admin', admin: 'Admin' };
         const NEXT = { none: 'church', church: 'admin', admin: 'none' };
@@ -388,13 +395,13 @@
                 : '<span class="icon" title="Not joined yet" aria-label="Not joined yet" role="img"></span>';
             if (!isAdmin) return `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
               <td>${esc(cohortName(i.cohort))}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
-              <td class="actions">${joinedIcon}</td></tr>`;
+              <td class="actions">${unsubIcon(i)}${joinedIcon}</td></tr>`;
             const roleTitle = isMe ? `${ROLE[r]} (that's you). Another admin can change your role.`
               : `${ROLE[r]}. Click to change to: ${ROLE[NEXT[r]].toLowerCase()}.`;
             const removeTitle = r === 'admin' ? 'Remove their admin rights before removing this person.' : `Remove ${i.email}`;
             return `<tr>${tick(i)}<td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
               <td>${cohortPicker(i.email, i.cohort)}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
-              <td class="actions">${joinedIcon}<button type="button" class="icon-btn role-toggle" data-email="${esc(i.email)}" data-role="${r}"
+              <td class="actions">${unsubIcon(i)}${joinedIcon}<button type="button" class="icon-btn role-toggle" data-email="${esc(i.email)}" data-role="${r}"
                     aria-pressed="${r !== 'none'}" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}"${isMe ? ' disabled' : ''}>${ICON.shield}</button><button type="button" class="icon-btn danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email) || unconfirmed.has(i.email)}"
                     title="${esc(removeTitle)}" aria-label="${esc(removeTitle)}"${r === 'admin' ? ' disabled' : ''}>${ICON.trash}</button></td></tr>`;
           }).join('')
@@ -458,6 +465,7 @@
         if (test) return showMessage($('compose-status'), data.sent ? 'Test sent to you. Check your inbox, then send it for real.' : 'The test couldn’t be sent.', data.sent ? 'ok' : 'error');
         const parts = [`Sent to ${data.sent} ${data.sent === 1 ? 'person' : 'people'}.`];
         if (data.failed) parts.push(`${data.failed} couldn’t be sent (the function’s logs in Supabase say why).`);
+        if (data.unsubscribed) parts.push(`${data.unsubscribed} skipped (unsubscribed).`);
         if (data.not_invited) parts.push(`${data.not_invited} skipped (no longer on the invitations list).`);
         if (data.failed) return showMessage($('compose-status'), parts.join(' '));
         $('compose').close();

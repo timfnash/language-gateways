@@ -60,4 +60,11 @@ so if that one works, only the function itself is needed:
    **Details** tab). That's safe for the same reason: it checks that the caller is an admin with their own sign-in.
 3. Try it: tick yourself in the invitations list, **Email selected**, write something and **Send a test to me**.
 
+**Unsubscribing.** Every email it sends ends with an unsubscribe link (and carries a List-Unsubscribe header, so
+mail programs can show their own Unsubscribe button). The link holds the person's random unsubscribe code from the
+`email_preferences` table, never their address, and opens `unsubscribe.html`, where one click unsubscribes them
+without signing in. People can also turn these emails off or on in their Profile. The function skips anyone who has
+unsubscribed and reports how many. This needs migration `20261011000000_email_unsubscribe.sql`; until it has been
+run, emails go out without the link.
+
 Resend's free plan sends up to 100 emails a day (3,000 a month); a bigger send needs a paid plan.

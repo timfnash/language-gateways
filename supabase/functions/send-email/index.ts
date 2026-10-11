@@ -5,7 +5,10 @@
 // to email anyone else. Each person gets their own copy, starting "Dear <given name>,". With test: true, one
 // copy goes to the admin who is sending, and nobody else.
 //
-// It answers { sent, failed, not_invited } (counts), or an error status with { error }.
+// People who have unsubscribed (email_preferences) are skipped. Every email ends with an unsubscribe link and carries
+// a List-Unsubscribe header; the link has the person's random unsubscribe code, never their address.
+//
+// It answers { sent, failed, not_invited, unsubscribed } (counts), or an error status with { error }.
 //
 // Deploying and secrets: see supabase/functions/README.md.
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -50,20 +53,29 @@ Deno.serve(async req => {
   if (!key) return json({ error: 'RESEND_API_KEY isn’t set.' }, 500);
 
   const service = createClient(SUPABASE_URL, SERVICE_KEY);
-  let recipients: { email: string; name: string | null }[];
+  let recipients: { email: string; name: string | null; code: string | null }[];
+  let unsubscribed = 0;
   if (body.test) {
     const { data: { user } } = await asCaller.auth.getUser();
     if (!user?.email) return json({ error: 'Couldn’t find your own email address.' }, 400);
-    const { data: me } = await service.from('profiles').select('given_name').eq('id', user.id).maybeSingle();
-    recipients = [{ email: user.email, name: me?.given_name ?? null }];
+    const [{ data: me }, { data: pref }] = await Promise.all([
+      service.from('profiles').select('given_name').eq('id', user.id).maybeSingle(),
+      service.from('email_preferences').select('unsubscribe_code').eq('email', user.email.toLowerCase()).maybeSingle(),
+    ]);
+    recipients = [{ email: user.email, name: me?.given_name ?? null, code: pref?.unsubscribe_code ?? null }];
   } else {
     // Only people on the invitations list; their profile's name if they've joined, otherwise the invitation's.
-    const [{ data: invited }, { data: profiles }] = await Promise.all([
+    const [{ data: invited }, { data: profiles }, { data: prefs }] = await Promise.all([
       service.from('invitations').select('email, given_name').in('email', emails),
       service.from('profiles').select('email, given_name').in('email', emails),
+      service.from('email_preferences').select('email, unsubscribe_code, unsubscribed_at').in('email', emails),
     ]);
     const nameOf = new Map((profiles ?? []).map(p => [p.email, p.given_name]));
-    recipients = (invited ?? []).map(i => ({ email: i.email, name: nameOf.get(i.email) || i.given_name || null }));
+    const prefOf = new Map((prefs ?? []).map(p => [p.email, p]));
+    const all = (invited ?? []).map(i => ({ email: i.email, name: nameOf.get(i.email) || i.given_name || null,
+      code: prefOf.get(i.email)?.unsubscribe_code ?? null, out: Boolean(prefOf.get(i.email)?.unsubscribed_at) }));
+    recipients = all.filter(r => !r.out);
+    unsubscribed = all.length - recipients.length;
   }
 
   // Resend's batch endpoint takes up to 100 emails per call; each is a separate email to one person.
@@ -74,10 +86,15 @@ Deno.serve(async req => {
     const res = await fetch('https://api.resend.com/emails/batch', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(chunk.map(r => ({
-        from: EMAIL_FROM, to: [r.email], reply_to: REPLY_TO, subject: fullSubject,
-        html: emailHtml(r.name, subject, message), text: emailText(r.name, message),
-      }))),
+      body: JSON.stringify(chunk.map(r => {
+        const unsubscribe = r.code ? `${SITE_URL}/unsubscribe.html?c=${r.code}` : null;
+        return {
+          from: EMAIL_FROM, to: [r.email], reply_to: REPLY_TO, subject: fullSubject,
+          html: emailHtml(r.name, subject, message, unsubscribe), text: emailText(r.name, message, unsubscribe),
+          headers: unsubscribe
+            ? { 'List-Unsubscribe': `<${unsubscribe}>, <mailto:${REPLY_TO}?subject=Unsubscribe>` } : undefined,
+        };
+      })),
     });
     if (res.ok) sent += chunk.length;
     else {
@@ -85,17 +102,18 @@ Deno.serve(async req => {
       console.error('Resend refused a batch', res.status, (await res.text()).slice(0, 300));
     }
   }
-  return json({ sent, failed, not_invited: body.test ? 0 : emails.length - recipients.length });
+  return json({ sent, failed, unsubscribed, not_invited: body.test ? 0 : emails.length - recipients.length - unsubscribed });
 });
 
 const greeting = (name: string | null) => (name ? `Dear ${name},` : 'Hello,');
 
-function emailText(name: string | null, message: string) {
+function emailText(name: string | null, message: string, unsubscribe: string | null) {
   return `${greeting(name)}
 
 ${message}
 
-Questions? Email ${REPLY_TO}.
+Questions? Email ${REPLY_TO}.${unsubscribe ? `
+Don't want emails like this? Unsubscribe: ${unsubscribe}` : ''}
 
 Language Gateways · Zipf (Jersey) Ltd`;
 }
@@ -109,7 +127,7 @@ function messageHtml(message: string) {
 }
 
 // Same design as the auth emails in supabase/email-templates/ (inline styles, table layout).
-function emailHtml(name: string | null, subject: string, message: string) {
+function emailHtml(name: string | null, subject: string, message: string, unsubscribe: string | null) {
   const p = 'margin:0 0 16px;font-size:16px;line-height:1.6;color:#221A25;';
   return `<!doctype html>
 <html lang="en-GB">
@@ -133,7 +151,8 @@ function emailHtml(name: string | null, subject: string, message: string) {
         <h1 style="margin:0 0 20px;font-size:26px;line-height:1.15;font-weight:600;text-transform:uppercase;color:#510074;">${esc(subject)}</h1>
         <p style="${p}">${esc(greeting(name))}</p>
         ${messageHtml(message)}
-        <p style="margin:0;padding-top:16px;border-top:1px solid #E7E0D2;font-size:13px;line-height:1.5;color:#5F5763;">You’re getting this because you’re taking part in <a href="${SITE_URL}" style="color:#5F5763;">Flourishing in Diversity</a>.</p>
+        <p style="margin:0;padding-top:16px;border-top:1px solid #E7E0D2;font-size:13px;line-height:1.5;color:#5F5763;">You’re getting this because you’re taking part in <a href="${SITE_URL}" style="color:#5F5763;">Flourishing in Diversity</a>.${unsubscribe
+          ? ` Don’t want emails like this? <a href="${unsubscribe}" style="color:#5F5763;">Unsubscribe</a>.` : ''}</p>
       </td></tr>
       <tr><td align="center" style="padding:16px 24px;font-size:12px;line-height:1.5;color:#5F5763;letter-spacing:.5px;">
         Language Gateways · Zipf (Jersey) Ltd<br>
