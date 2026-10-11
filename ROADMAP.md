@@ -44,6 +44,7 @@ Decided with Tim (2 Oct 2026): no separate comments; notes themselves are shared
 - [x] Emails for join requests: "request received" (the confirmation email's wording) and "you're in" on approval
       (Edge Function + Resend)
 - [x] Admins move people to another cohort or church (invitation, profile and notes move with them)
+- [x] Admins email selected people (or a whole cohort) from the invitations list (`send-email` Edge Function + Resend)
 - [x] Home page lists every session (only the current one open), with links to Songs and Words
 - [x] Songs page: every visible song from every session; filter by church, cohort, language; sort by session or English title
 - [x] Words page: words seen through more than one language, across sessions and cohorts (`perspectives.csv`)

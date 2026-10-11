@@ -51,6 +51,15 @@ The list below shows everyone invited; a tick means they've joined, and an envel
 signed up but haven't confirmed their email address yet. Filter it by church, cohort,
 status (all invitees, joined, not yet joined), or a name or email.
 
+## Emailing people
+
+Admins: tick people in the invitations list, or tick the box in the list's heading to select everyone shown (so
+filter by cohort first to select a whole cohort). The selection is kept while you change the filters, so you can
+gather people from several cohorts. Then **Email selected**: write a subject and message (each copy starts
+"Dear <given name>,"; a blank line starts a new paragraph; links work), **Send a test to me** to see how it looks,
+then **Send**. Each person gets their own email, so nobody sees the other addresses. Replies go to
+courses@languagegateways.com. This uses the `send-email` Edge Function (see `supabase/functions/README.md`).
+
 ## Moving someone to another cohort or church
 
 Admins: choose the new cohort in the **Cohort** column of their row (cohorts are listed as *church · cohort*, so
