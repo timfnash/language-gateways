@@ -36,3 +36,28 @@ Supabase checks the caller's sign-in token before running a function ("Enforce J
 check can fail with the newer API keys. Turn it off in the function's **Details** tab. That's safe: the
 function approves only through `approve_join_request` with the caller's own token, which refuses anyone who
 isn't an admin or the person's church admin.
+
+## send-email
+
+The Admin page's **Email selected** button (Invitations tab) calls this function. It sends an admin's message to
+the people ticked in the invitations list, each as their own email starting "Dear <given name>," (so nobody sees
+anyone else's address), through Resend. Only admins can use it, and it only sends to addresses on the invitations
+list. **Send a test to me** sends one copy, marked [Test], to the admin who is sending.
+
+### Deploying
+
+It uses the same secrets as `approve-join-request` (`RESEND_API_KEY`, and optionally `EMAIL_FROM` and `SITE_URL`),
+so if that one works, only the function itself is needed:
+
+1. In Supabase → **Edge Functions → Deploy a new function → Via Editor**: name it `send-email`, replace the example
+   code with the contents of `send-email/index.ts`, and **Deploy**:
+
+   ```bash
+   pbcopy < supabase/functions/send-email/index.ts
+   ```
+
+2. If you turned off **Enforce JWT verification** for `approve-join-request`, turn it off for this one too (its
+   **Details** tab). That's safe for the same reason: it checks that the caller is an admin with their own sign-in.
+3. Try it: tick yourself in the invitations list, **Email selected**, write something and **Send a test to me**.
+
+Resend's free plan sends up to 100 emails a day (3,000 a month); a bigger send needs a paid plan.

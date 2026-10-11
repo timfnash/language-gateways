@@ -86,6 +86,11 @@
         <label>Search <input id="f-search" type="search" placeholder="Name or email"></label>
       </div>
       <p class="meta" id="invite-count"></p>
+      <div class="bulk ui" data-admin-only>
+        <button type="button" id="email-selected" disabled>Email selected</button>
+        <span class="meta" id="selected-count">Tick people (or tick the box in the heading to select everyone shown) to email them.</span>
+        <button type="button" class="link" id="clear-selected" hidden>Clear selection</button>
+      </div>
       <div class="table-wrap"><table class="invites" id="invites"></table></div>
       <p class="message" id="remove-message" hidden></p>
     </section>
@@ -129,6 +134,23 @@
       <div class="ask-buttons">
         <button value="cancel" class="secondary" id="ask-cancel">Cancel</button>
         <button value="ok" id="ask-ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Writing an email to the selected people -->
+  <dialog class="ask compose ui" id="compose">
+    <form method="dialog" id="compose-form">
+      <h2 id="compose-title">Email</h2>
+      <label for="compose-subject">Subject</label>
+      <input id="compose-subject" required maxlength="150">
+      <label for="compose-message">Message <span class="hint">(each copy starts “Dear &lt;given name&gt;,”; a blank line starts a new paragraph; links work)</span></label>
+      <textarea id="compose-message" rows="10" required></textarea>
+      <p class="message" id="compose-status" hidden></p>
+      <div class="ask-buttons">
+        <button value="cancel" class="secondary" formnovalidate>Cancel</button>
+        <button value="test" class="secondary">Send a test to me</button>
+        <button value="send" id="compose-send">Send</button>
       </div>
     </form>
   </dialog>
@@ -319,6 +341,7 @@
                        mother_tongue: p.mother_tongue, other_languages: p.other_languages } : i;
         });
         joined = new Set((profiles ?? []).map(p => p.email).filter(e => !unconfirmed.has(e)));
+        for (const email of selected) if (!invites.some(i => i.email === email)) selected.delete(email);
 
         const keep = (el, html) => { const v = el.value; el.innerHTML = html; if ([...el.options].some(o => o.value === v)) el.value = v; };
         keep($('i-cohort'), options(cohorts, cohortLabel));
@@ -354,7 +377,9 @@
         const me = profile.email;
         const ROLE = { none: 'No admin rights', church: 'Church admin', admin: 'Admin' };
         const NEXT = { none: 'church', church: 'admin', admin: 'none' };
-        $('invites').innerHTML = `<thead><tr><th>Email</th><th>Name</th><th>Cohort</th><th>Languages</th><th><span class="visually-hidden">Joined, role and remove</span></th></tr></thead><tbody>` +
+        const tick = i => `<td class="select"><input type="checkbox" data-select="${esc(i.email)}" aria-label="Select ${esc(i.email)}"${selected.has(i.email) ? ' checked' : ''}></td>`;
+        const allShown = shown.length && shown.every(i => selected.has(i.email)), someShown = shown.some(i => selected.has(i.email));
+        $('invites').innerHTML = `<thead><tr>${isAdmin ? `<th class="select"><input type="checkbox" id="select-shown" aria-label="Select everyone shown"${allShown ? ' checked' : ''}></th>` : ''}<th>Email</th><th>Name</th><th>Cohort</th><th>Languages</th><th><span class="visually-hidden">Joined, role and remove</span></th></tr></thead><tbody>` +
           (shown.length ? shown.map(i => {
             const r = roles.get(i.email) ?? 'none', isMe = i.email === me, joinedIcon = joined.has(i.email)
               ? `<span class="icon joined" title="Joined" aria-label="Joined" role="img">${ICON.check}</span>`
@@ -367,14 +392,80 @@
             const roleTitle = isMe ? `${ROLE[r]} (that's you). Another admin can change your role.`
               : `${ROLE[r]}. Click to change to: ${ROLE[NEXT[r]].toLowerCase()}.`;
             const removeTitle = r === 'admin' ? 'Remove their admin rights before removing this person.' : `Remove ${i.email}`;
-            return `<tr><td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
+            return `<tr>${tick(i)}<td>${esc(i.email)}</td><td>${esc([i.given_name, i.family_name].filter(Boolean).join(' '))}</td>
               <td>${cohortPicker(i.email, i.cohort)}</td><td>${esc([i.mother_tongue, i.other_languages].filter(Boolean).join('; '))}</td>
               <td class="actions">${joinedIcon}<button type="button" class="icon-btn role-toggle" data-email="${esc(i.email)}" data-role="${r}"
                     aria-pressed="${r !== 'none'}" title="${esc(roleTitle)}" aria-label="${esc(roleTitle)}"${isMe ? ' disabled' : ''}>${ICON.shield}</button><button type="button" class="icon-btn danger" data-remove="${esc(i.email)}" data-joined="${joined.has(i.email) || unconfirmed.has(i.email)}"
                     title="${esc(removeTitle)}" aria-label="${esc(removeTitle)}"${r === 'admin' ? ' disabled' : ''}>${ICON.trash}</button></td></tr>`;
           }).join('')
-          : `<tr><td colspan="5" class="meta">Nobody matches.</td></tr>`) + '</tbody>';
+          : `<tr><td colspan="${isAdmin ? 6 : 5}" class="meta">Nobody matches.</td></tr>`) + '</tbody>';
+        if (isAdmin) $('select-shown').indeterminate = someShown && !allShown;
+        shownEmails = shown.map(i => i.email);
+        drawSelection();
       }
+
+      // ---- Emailing selected people (admins) ---------------------------------------
+      // The selection is kept while filters change, so people can be gathered from several cohorts.
+      const selected = new Set();
+      let shownEmails = [];
+      function drawSelection() {
+        const n = selected.size;
+        $('email-selected').disabled = !n;
+        $('email-selected').textContent = n ? `Email selected (${n})` : 'Email selected';
+        $('clear-selected').hidden = !n;
+        $('selected-count').textContent = n ? `${n} selected.` : 'Tick people (or tick the box in the heading to select everyone shown) to email them.';
+      }
+      $('invites').addEventListener('change', e => {
+        if (e.target.id === 'select-shown') {
+          for (const email of shownEmails) e.target.checked ? selected.add(email) : selected.delete(email);
+          return drawInvites();
+        }
+        const box = e.target.closest('input[data-select]');
+        if (!box) return;
+        box.checked ? selected.add(box.dataset.select) : selected.delete(box.dataset.select);
+        const all = $('select-shown');
+        all.checked = shownEmails.every(email => selected.has(email));
+        all.indeterminate = !all.checked && shownEmails.some(email => selected.has(email));
+        drawSelection();
+      });
+      $('clear-selected').addEventListener('click', () => { selected.clear(); drawInvites(); });
+      $('email-selected').addEventListener('click', () => {
+        $('compose-title').textContent = `Email ${selected.size} ${selected.size === 1 ? 'person' : 'people'}`;
+        $('compose-send').textContent = `Send to ${selected.size}`;
+        showMessage($('compose-status'), '');
+        $('compose').showModal();
+        $('compose-subject').focus();
+      });
+      // The form's buttons are handled here so the dialog stays open while sending (Cancel just closes it).
+      $('compose-form').addEventListener('submit', async e => {
+        const action = e.submitter?.value;
+        if (action === 'cancel') return;
+        e.preventDefault();
+        const test = action === 'test', n = selected.size;
+        const buttons = [...$('compose-form').querySelectorAll('button')];
+        buttons.forEach(b => { b.disabled = true; });
+        showMessage($('compose-status'), test ? 'Sending a test to you…' : `Sending to ${n}…`, 'ok');
+        const { data, error } = await supabase.functions.invoke('send-email', { body: {
+          emails: test ? [] : [...selected], subject: $('compose-subject').value, message: $('compose-message').value, test } });
+        buttons.forEach(b => { b.disabled = false; });
+        if (error) {
+          const body = error.context?.json ? await error.context.json().catch(() => ({})) : {};
+          const missing = error.context?.status === 404;
+          return showMessage($('compose-status'), missing
+            ? 'The send-email function isn’t set up yet: see supabase/functions/README.md.'
+            : body.error || error.message);
+        }
+        if (test) return showMessage($('compose-status'), data.sent ? 'Test sent to you. Check your inbox, then send it for real.' : 'The test couldn’t be sent.', data.sent ? 'ok' : 'error');
+        const parts = [`Sent to ${data.sent} ${data.sent === 1 ? 'person' : 'people'}.`];
+        if (data.failed) parts.push(`${data.failed} couldn’t be sent (the function’s logs in Supabase say why).`);
+        if (data.not_invited) parts.push(`${data.not_invited} skipped (no longer on the invitations list).`);
+        if (data.failed) return showMessage($('compose-status'), parts.join(' '));
+        $('compose').close();
+        $('compose-form').reset();
+        selected.clear();
+        drawInvites();
+        showMessage($('remove-message'), parts.join(' '), 'ok');
+      });
       $('f-church').addEventListener('change', () => { fillCohortFilter(); drawInvites(); });
       $('f-cohort').addEventListener('change', drawInvites);
       $('f-status').addEventListener('change', drawInvites);

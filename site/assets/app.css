@@ -404,3 +404,13 @@ details.word[open] > summary { border-bottom: 1px solid var(--border); }
 
 /* Admin: choosing a person's cohort moves them */
 select.move { width: auto; max-width: 100%; margin: 0; padding: 4px 8px; font-size: .85rem; }
+
+/* Admin: selecting people to email */
+.bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 10px; }
+.bulk button { margin: 0; }
+.bulk .meta { font-size: .85rem; }
+.invites .select { width: 1%; }
+.invites .select input { width: auto; margin: 0; accent-color: var(--brand); }
+dialog.compose { width: min(40rem, calc(100vw - 32px)); }
+dialog.compose label:first-of-type { margin-top: 4px; }
+dialog.compose .message { margin: 12px 0 0; }
