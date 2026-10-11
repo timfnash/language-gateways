@@ -60,7 +60,8 @@ gather people from several cohorts. Then **Email selected**: write a subject and
 then **Send**. Each person gets their own email, so nobody sees the other addresses. Replies go to
 courses@languagegateways.com. This uses the `send-email` Edge Function (see `supabase/functions/README.md`).
 
-Each email has an unsubscribe link; people can also turn these emails off or on in their Profile. People who have
+Each email has an unsubscribe link; opening it again later lets them resubscribe. People can also turn these emails
+off or on in their Profile. There's no Admin button to resubscribe someone: that's always their own choice. People who have
 unsubscribed have a **crossed-out envelope** in the list. You can still tick them (so selecting a whole cohort still
 works), but they're skipped when sending, and the result says how many were skipped. Account emails (confirming
 an address, password reset, "You're in") always go.
