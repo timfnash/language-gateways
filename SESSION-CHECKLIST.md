@@ -24,13 +24,22 @@
    - `notes.txt` (the section times you noted)
 2. Upload the video to YouTube (unlisted) and add its link to `notes.txt`
 3. In a new Claude Code session in this project: **"Process session Sessions/<folder> following SESSION-CHECKLIST.md"**
-   - transcribe the tables and front audio
+   - transcribe the tables and front audio (Whisper can't read `.m4a`: convert it first with macOS's
+     `afconvert -f WAVE -d LEI16@16000 -c 1 in.m4a out.wav`; render slides from the PDF with PyMuPDF at 2000 px wide
+     if there are no JPEG exports)
    - remove hallucinated repetition
    - tidy the front talk and place the slides
    - summarise each table's discussions, collect the prayers, pick quotes
    - write up what was said with this cohort, and its songs (Tim sends me the YouTube links in the order sung; the
      loader checks them), tables and prayers, in
      `Sessions/fid-<n>/cohorts/<cohort-id>/` (see `docs/LOADING-SESSIONS.md`)
+   - Part boundaries: if the YouTube video is the same length as the front audio (Session Three), it is
+     unedited and the audio's times are the video's times; if the table discussions were cut out, ask Tim to paste
+     YouTube's transcript with times. Check the boundaries on the Watch tab
+   - Leave out of the written record anything personal that isn't course content (for example a prayer about someone's
+     health) and tell Tim it is still in the video
+   - A table whose recording is too faint to transcribe gets no write-up: say so rather than guessing
+   - Table discussions and prayers go by theme, not table, and appear in the record where they happened
 4. Review the draft: quotes, spellings of non-English words, and that nobody but Tim is identifiable
 5. Load it as a draft, check it on the site as an admin, then publish it to the cohort (`docs/LOADING-SESSIONS.md`)
 6. Choose any quotes or takeaways to share across all churches
