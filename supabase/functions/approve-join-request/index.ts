@@ -86,7 +86,7 @@ Sign in: ${signIn}
 
 Questions? Email ${REPLY_TO}.
 
-Language Gateways · Zipf (Jersey) Ltd`;
+Language Gateways · Zipf Ltd`;
 }
 
 // Same design as the auth emails in supabase/email-templates/ (inline styles, table layout).
@@ -124,7 +124,7 @@ function approvedHtml(name: string | null, group: string) {
         <p style="margin:0;padding-top:16px;border-top:1px solid #E7E0D2;font-size:13px;line-height:1.5;color:#5F5763;">You’re getting this because you asked to join the course with your church’s link.</p>
       </td></tr>
       <tr><td align="center" style="padding:16px 24px;font-size:12px;line-height:1.5;color:#5F5763;letter-spacing:.5px;">
-        Language Gateways · Zipf (Jersey) Ltd<br>
+        Language Gateways · Zipf Ltd<br>
         Questions? <a href="mailto:${REPLY_TO}" style="color:#5F5763;">${REPLY_TO}</a>
       </td></tr>
     </table>

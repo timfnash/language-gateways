@@ -115,7 +115,7 @@ ${message}
 Questions? Email ${REPLY_TO}.${unsubscribe ? `
 Don't want emails like this? Unsubscribe: ${unsubscribe}` : ''}
 
-Language Gateways · Zipf (Jersey) Ltd`;
+Language Gateways · Zipf Ltd`;
 }
 
 // The message as HTML: blank lines start paragraphs, single line breaks are kept, and web links are clickable.
@@ -155,7 +155,7 @@ function emailHtml(name: string | null, subject: string, message: string, unsubs
           ? ` Don’t want emails like this? <a href="${unsubscribe}" style="color:#5F5763;">Unsubscribe</a>.` : ''}</p>
       </td></tr>
       <tr><td align="center" style="padding:16px 24px;font-size:12px;line-height:1.5;color:#5F5763;letter-spacing:.5px;">
-        Language Gateways · Zipf (Jersey) Ltd<br>
+        Language Gateways · Zipf Ltd<br>
         Questions? <a href="mailto:${REPLY_TO}" style="color:#5F5763;">${REPLY_TO}</a>
       </td></tr>
     </table>
