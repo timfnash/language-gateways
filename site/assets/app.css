@@ -362,6 +362,14 @@ select.share-limit { width: auto; padding: 6px 10px; font-size: .85rem; }
 .admin-grid { display: grid; gap: 24px; }
 .admin-grid .card { margin: 0; }
 .admin-grid h2 { margin-top: 0; }
+/* Forms folded away until needed (Admin page: invite one person, paste a CSV) */
+details.fold { padding-top: 18px; padding-bottom: 18px; }
+details.fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: '▸'; display: inline-block; color: var(--brand); font-size: 1.3rem; line-height: 1; transition: transform .15s; }
+details.fold[open] > summary::before { transform: rotate(90deg); }
+details.fold > summary h2 { margin: 0; }
+details.fold[open] > summary { margin-bottom: 8px; }
 .admin-notes li.waiting { border-left-color: var(--brand); }
 .admin-notes li button { margin-top: 10px; padding: 9px 16px; font-size: .72rem; }
 .admin-notes li p.meta { margin: 0 0 6px; }

@@ -44,8 +44,9 @@
 
     <section id="panel-invites" role="tabpanel" class="ui" hidden>
       <div class="admin-grid" data-admin-only>
-        <form class="card" id="invite-one">
-          <h2>Invite one person</h2>
+        <details class="card fold">
+        <summary><h2>Invite one person</h2></summary>
+        <form id="invite-one">
           <label for="i-email">Email</label>
           <input id="i-email" type="email" required>
           <label for="i-cohort">Cohort</label>
@@ -61,9 +62,11 @@
           <button type="submit">Add invitation</button>
           <p class="message" id="one-message" hidden></p>
         </form>
+        </details>
 
-        <form class="card" id="invite-csv">
-          <h2>Paste a CSV</h2>
+        <details class="card fold">
+        <summary><h2>Paste a CSV</h2></summary>
+        <form id="invite-csv">
           <p class="meta">First row: <code>email,cohort,given_name,family_name,mother_tongue,other_languages</code>.
             Only email and cohort are needed; the church comes from the cohort. Use the cohort ID, e.g.
             <code id="cohort-example">freedom-church-jersey-2026-09</code>.</p>
@@ -72,6 +75,7 @@
           <button type="submit">Add invitations</button>
           <p class="message" id="csv-message" hidden></p>
         </form>
+        </details>
       </div>
 
       <h2 id="people-heading">Invited</h2>
