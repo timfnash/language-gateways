@@ -40,6 +40,15 @@
      health) and tell Tim it is still in the video
    - A table whose recording is too faint to transcribe gets no write-up: say so rather than guessing
    - Table discussions and prayers go by theme, not table, and appear in the record where they happened
+   - If the video is edited after the session (Session Four), load a draft first with the audio's times as
+     placeholders and the YouTube ID set, then reload with the edited video's part times (Tim pastes YouTube's
+     transcript with times, or gives the start of each part) before publishing
+   - If songs weren't played (Session Four: no internet), still list them in `songs.csv` and say in each story
+     that they weren't played on the night; the loader checks the links
+   - The Whisper transcripts mishear names and non-English words (Swahili, Hebrew, Greek): check spellings with
+     Tim, and leave out personal prayers, welcomes and life stories that aren't course content
+   - The Full Record .docx is built with python-docx from the loaded session folder, in the brand style: Jost,
+     purple `#510074` / `#3A0054` headings, gold `#8C6F1E` / `#C3A14E` rules and quote bars, 5.83 in slide images
 4. Review the draft: quotes, spellings of non-English words, and that nobody but Tim is identifiable
 5. Load it as a draft, check it on the site as an admin, then publish it to the cohort (`docs/LOADING-SESSIONS.md`)
 6. Choose any quotes or takeaways to share across all churches
