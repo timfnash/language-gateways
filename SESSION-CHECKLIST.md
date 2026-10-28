@@ -47,6 +47,10 @@
      that they weren't played on the night; the loader checks the links
    - The Whisper transcripts mishear names and non-English words (Swahili, Hebrew, Greek): check spellings with
      Tim, and leave out personal prayers, welcomes and life stories that aren't course content
+   - Session Five: a song shared as a Facebook link can't be loaded (the loader accepts YouTube links only), so ask
+     Tim for a YouTube link, or leave the song out of `songs.csv` until he sends one. A recorder that ran out
+     before the prayers leaves that table with no prayers; a table with no recorder (T3) has no write-up. Table
+     recorders' file dates can be the copy date, so confirm the session from the audio
    - The Full Record .docx is built with python-docx from the loaded session folder, in the brand style: Jost,
      purple `#510074` / `#3A0054` headings, gold `#8C6F1E` / `#C3A14E` rules and quote bars, 5.83 in slide images
 4. Review the draft: quotes, spellings of non-English words, and that nobody but Tim is identifiable
