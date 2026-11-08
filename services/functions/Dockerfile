@@ -18,8 +18,8 @@ ADD https://raw.githubusercontent.com/baranberkay96/supabase-railway/3ee9e9dac2f
 ADD https://raw.githubusercontent.com/baranberkay96/supabase-railway/3ee9e9dac2f27e471172afa282ea56939c430926/services/functions/supabase-keys.sh /usr/local/bin/supabase-keys.sh
 ADD https://raw.githubusercontent.com/baranberkay96/supabase-railway/3ee9e9dac2f27e471172afa282ea56939c430926/services/functions/railway-entrypoint.sh /usr/local/bin/railway-entrypoint.sh
 
-ADD https://raw.githubusercontent.com/timfnash/language-gateways/railway-migration/supabase/functions/approve-join-request/index.ts /home/deno/functions/approve-join-request/index.ts
-ADD https://raw.githubusercontent.com/timfnash/language-gateways/railway-migration/supabase/functions/send-email/index.ts /home/deno/functions/send-email/index.ts
+ADD https://raw.githubusercontent.com/timfnash/language-gateways/a5fb67701fca354f30b3695eb5957096e8c5bfff/supabase/functions/approve-join-request/index.ts /home/deno/functions/approve-join-request/index.ts
+ADD https://raw.githubusercontent.com/timfnash/language-gateways/a5fb67701fca354f30b3695eb5957096e8c5bfff/supabase/functions/send-email/index.ts /home/deno/functions/send-email/index.ts
 
 RUN chmod 0755 /usr/local/bin/supabase-keys.sh /usr/local/bin/railway-entrypoint.sh
 
