@@ -19,6 +19,7 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABAS
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://fid.languagegateways.com';
 const EMAIL_FROM = Deno.env.get('EMAIL_FROM') ?? 'Flourishing in Diversity <courses@languagegateways.com>';
 const REPLY_TO = 'courses@languagegateways.com';
+const EMAIL_DELIVERY_DISABLED = Deno.env.get('EMAIL_DELIVERY_DISABLED') === 'true';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -50,6 +51,9 @@ Deno.serve(async req => {
     service.from('cohorts').select('name').eq('id', person.cohort).single(),
   ]);
 
+  if (EMAIL_DELIVERY_DISABLED) {
+    return json({ approved: true, emailed: false, email_problem: 'email delivery is disabled' });
+  }
   const key = Deno.env.get('RESEND_API_KEY');
   if (!key) return json({ approved: true, emailed: false, email_problem: 'RESEND_API_KEY isn’t set' });
   const group = [church?.name, cohort?.name].filter(Boolean).join(' · ');

@@ -22,6 +22,7 @@ const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://fid.languagegateways.com';
 const EMAIL_FROM = Deno.env.get('EMAIL_FROM') ?? 'Flourishing in Diversity <courses@languagegateways.com>';
 const REPLY_TO = 'courses@languagegateways.com';
 const MAX_RECIPIENTS = 500;
+const EMAIL_DELIVERY_DISABLED = Deno.env.get('EMAIL_DELIVERY_DISABLED') === 'true';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -48,6 +49,8 @@ Deno.serve(async req => {
   });
   const { data: isAdmin } = await asCaller.rpc('is_admin');
   if (isAdmin !== true) return json({ error: 'Only admins can send emails.' }, 403);
+
+  if (EMAIL_DELIVERY_DISABLED) return json({ error: 'Email delivery is disabled.' }, 503);
 
   const key = Deno.env.get('RESEND_API_KEY');
   if (!key) return json({ error: 'RESEND_API_KEY isn’t set.' }, 500);
